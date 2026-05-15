@@ -1,5 +1,5 @@
 use anyhow::Result;
-use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::event::{Event, KeyCode, KeyEventKind};
 use ratatui::Frame;
 
 pub struct App {
@@ -12,10 +12,8 @@ impl App {
     }
 
     pub fn handle_event(&mut self, event: Event) -> Result<()> {
-        if let Event::Key(key) = event {
-            if key.kind == KeyEventKind::Press && key.code == KeyCode::Esc {
-                self.should_quit = true;
-            }
+        if let Event::Key(crossterm::event::KeyEvent { kind: KeyEventKind::Press, code: KeyCode::Esc, .. }) = event {
+            self.should_quit = true;
         }
         Ok(())
     }
@@ -28,6 +26,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crossterm::event::{KeyEvent, KeyModifiers};
 
     #[test]
     fn new_app_is_not_quitting() {
