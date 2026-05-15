@@ -16,7 +16,12 @@ impl App {
     }
 
     pub fn handle_event(&mut self, event: Event) -> Result<()> {
-        if let Event::Key(crossterm::event::KeyEvent { kind: KeyEventKind::Press, code: KeyCode::Esc, .. }) = event {
+        if let Event::Key(crossterm::event::KeyEvent {
+            kind: KeyEventKind::Press,
+            code: KeyCode::Esc,
+            ..
+        }) = event
+        {
             self.should_quit = true;
         }
         Ok(())
@@ -32,8 +37,7 @@ impl App {
         ])
         .split(area);
 
-        let text = Paragraph::new("kern — press Esc to quit")
-            .alignment(Alignment::Center);
+        let text = Paragraph::new("kern — press Esc to quit").alignment(Alignment::Center);
 
         frame.render_widget(text, vertical[1]);
     }
