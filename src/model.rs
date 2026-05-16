@@ -47,6 +47,7 @@ pub struct Config {
     pub word_count: usize,
     pub cursor_style: CursorStyle,
     pub time_limit: Duration,
+    // invariant: always a valid index into DURATION_OPTIONS; only mutated via modular arithmetic in update.rs
     pub selected_duration_idx: usize,
     #[expect(dead_code)]
     pub punctuation: bool, // stubbed; wired in Phase 3
