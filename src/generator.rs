@@ -1,5 +1,6 @@
 use crate::model::Word;
-use rand::prelude::*;
+use rand::seq::IndexedRandom;
+use rand::Rng;
 
 const WORD_LIST: &[&str] = &[
     "the", "be", "to", "of", "and", "a", "in", "that", "have", "it",
@@ -13,10 +14,10 @@ const WORD_LIST: &[&str] = &[
     "after", "use", "two", "how", "our", "work", "first", "well", "way", "even",
     "new", "want", "because", "any", "these", "give", "day", "most", "us", "great",
     "between", "need", "large", "often", "hand", "high", "place", "hold", "turn", "been",
-    "here", "why", "ask", "went", "men", "read", "need", "land", "different", "home",
-    "move", "try", "kind", "hand", "picture", "again", "change", "off", "play", "spell",
+    "here", "why", "ask", "went", "men", "read", "land", "different", "home",
+    "move", "try", "kind", "picture", "again", "change", "off", "play", "spell",
     "air", "away", "animal", "house", "point", "page", "letter", "mother", "answer", "found",
-    "study", "still", "learn", "plant", "cover", "food", "sun", "four", "between", "state",
+    "study", "still", "learn", "plant", "cover", "food", "sun", "four", "state",
     "keep", "eye", "never", "last", "let", "thought", "city", "tree", "cross", "farm",
     "hard", "start", "might", "story", "saw", "far", "sea", "draw", "left", "late",
     "run", "while", "press", "close", "night", "real", "life", "few", "open", "seem",
@@ -61,6 +62,12 @@ mod tests {
     fn words_start_untyped() {
         let mut rng = seeded_rng();
         let words = generate(5, &mut rng);
-        assert!(words.iter().all(|w| w.typed.is_empty() && !w.done));
+        assert!(words.iter().all(|w| w.typed.is_empty() && !w.committed));
+    }
+
+    #[test]
+    fn zero_count_returns_empty() {
+        let mut rng = seeded_rng();
+        assert_eq!(generate(0, &mut rng).len(), 0);
     }
 }

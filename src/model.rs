@@ -18,7 +18,7 @@ pub struct Word {
     // Raw typed input for this word. Capped at chars.len() — overtyping is not
     // supported in Phase 2 but this String makes Phase 4 corrected-char tracking easy.
     pub typed: String,
-    pub done: bool, // true once Space commits this word
+    pub committed: bool, // true once Space commits this word
 }
 
 impl Word {
@@ -26,7 +26,7 @@ impl Word {
         Word {
             chars: text.chars().collect(),
             typed: String::new(),
-            done: false,
+            committed: false,
         }
     }
 }
@@ -34,7 +34,7 @@ impl Word {
 #[derive(Debug, Clone, PartialEq)]
 pub enum CursorStyle {
     Block,     // filled background / inverted colors (default)
-    Underline, // future
+    Underline, // not yet wired; Phase 6 polish
 }
 
 #[derive(Debug, Clone)]
