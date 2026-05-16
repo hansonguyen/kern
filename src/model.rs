@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+pub const DURATION_OPTIONS: [u64; 3] = [15, 30, 60];
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Screen {
     Typing,
@@ -45,6 +47,7 @@ pub struct Config {
     pub word_count: usize,
     pub cursor_style: CursorStyle,
     pub time_limit: Duration,
+    pub selected_duration_idx: usize,
     #[expect(dead_code)]
     pub punctuation: bool, // stubbed; wired in Phase 3
     #[expect(dead_code)]
@@ -57,6 +60,7 @@ impl Default for Config {
             word_count: 25,
             cursor_style: CursorStyle::Block,
             time_limit: Duration::from_secs(15),
+            selected_duration_idx: 0,
             punctuation: false,
             numbers: false,
         }
