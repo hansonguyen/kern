@@ -186,3 +186,51 @@ mod tests {
         assert_eq!(model.screen, Screen::Typing);
     }
 }
+
+#[cfg(test)]
+mod prop_tests {
+    use super::*;
+    use crate::model::Config;
+    use proptest::prelude::*;
+
+    fn arb_msg() -> impl Strategy<Value = Msg> {
+        prop_oneof![
+            Just(Msg::Char('a')),
+            Just(Msg::Char('z')),
+            Just(Msg::Backspace),
+            Just(Msg::Space),
+        ]
+    }
+
+    fn model_with_words(words: &[&str]) -> Model {
+        Model {
+            screen: Screen::Typing,
+            session: SessionState::new(words.iter().map(|w| Word::new(w)).collect()),
+            config: Config::default(),
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn current_word_stays_in_bounds(actions in prop::collection::vec(arb_msg(), 0..100)) {
+            let mut model = model_with_words(&["hello", "world", "test", "kern", "rust"]);
+            for msg in actions {
+                update(&mut model, msg);
+                // current_word must always index a valid word
+                prop_assert!(model.session.current_word < model.session.words.len());
+            }
+        }
+
+        #[test]
+        fn typed_len_never_exceeds_word_len(actions in prop::collection::vec(arb_msg(), 0..100)) {
+            let mut model = model_with_words(&["hi", "ok", "go", "be", "do"]);
+            for msg in actions {
+                update(&mut model, msg);
+                for word in &model.session.words {
+                    // Overtype cap must hold under any input sequence.
+                    prop_assert!(word.typed.len() <= word.chars.len());
+                }
+            }
+        }
+    }
+}
