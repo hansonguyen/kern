@@ -9,6 +9,7 @@ pub fn update(model: &mut Model, msg: Msg) -> Command {
         }
 
         Msg::Tab => {
+            model.screen = Screen::Typing;
             return Command::GenerateWords {
                 count: model.config.word_count,
             };
@@ -16,6 +17,9 @@ pub fn update(model: &mut Model, msg: Msg) -> Command {
 
         Msg::Char(c) => {
             let session = &mut model.session;
+            if session.words.is_empty() {
+                return Command::None;
+            }
             if session.status == TestStatus::Waiting {
                 session.status = TestStatus::Running;
             }
@@ -41,6 +45,9 @@ pub fn update(model: &mut Model, msg: Msg) -> Command {
 
         Msg::Space => {
             let session = &mut model.session;
+            if session.words.is_empty() || session.words[session.current_word].typed.is_empty() {
+                return Command::None;
+            }
             let is_last = session.current_word == session.words.len() - 1;
             session.words[session.current_word].committed = true;
 
@@ -52,7 +59,9 @@ pub fn update(model: &mut Model, msg: Msg) -> Command {
             }
         }
 
-        Msg::Tick => {}
+        Msg::Tick => {
+            // No timer state to update in Phase 2 — view reads elapsed time directly.
+        }
     }
 
     Command::None
@@ -158,5 +167,22 @@ mod tests {
         let mut model = model_with_words(&["hello"]);
         let cmd = update(&mut model, Msg::Tab);
         assert!(matches!(cmd, Command::GenerateWords { .. }));
+    }
+
+    #[test]
+    fn space_on_empty_typed_is_noop() {
+        let mut model = model_with_words(&["hello", "world"]);
+        // no chars typed — Space should be ignored
+        update(&mut model, Msg::Space);
+        assert_eq!(model.session.current_word, 0);
+        assert!(!model.session.words[0].committed);
+    }
+
+    #[test]
+    fn tab_resets_screen_to_typing() {
+        let mut model = model_with_words(&["hi"]);
+        model.screen = Screen::Done;
+        update(&mut model, Msg::Tab);
+        assert_eq!(model.screen, Screen::Typing);
     }
 }
