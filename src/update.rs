@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use crate::commands::Command;
-use crate::model::{Model, Screen, TestStatus, DURATION_OPTIONS};
+use crate::model::{DURATION_OPTIONS, Model, Screen, TestStatus};
 use crate::msg::Msg;
 
 pub fn update(model: &mut Model, msg: Msg) -> Command {
@@ -12,11 +12,9 @@ pub fn update(model: &mut Model, msg: Msg) -> Command {
 
         Msg::Tab => {
             if model.session.status != TestStatus::Running {
-                let next_idx =
-                    (model.config.selected_duration_idx + 1) % DURATION_OPTIONS.len();
+                let next_idx = (model.config.selected_duration_idx + 1) % DURATION_OPTIONS.len();
                 model.config.selected_duration_idx = next_idx;
-                model.config.time_limit =
-                    Duration::from_secs(DURATION_OPTIONS[next_idx]);
+                model.config.time_limit = Duration::from_secs(DURATION_OPTIONS[next_idx]);
             }
             model.screen = Screen::Typing;
             return Command::GenerateWords {
