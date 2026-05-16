@@ -24,6 +24,8 @@ pub fn char_state(word: &Word, idx: usize) -> CharState {
     }
 }
 
+// Space and Enter both advance to the next word, matching Monkeytype's behaviour
+// where Enter is treated as an alternative word-commit key.
 pub fn event_to_msg(event: Event) -> Option<Msg> {
     match event {
         Event::Key(KeyEvent {
