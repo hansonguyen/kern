@@ -59,8 +59,15 @@ pub fn update(model: &mut Model, msg: Msg) -> Command {
             }
         }
 
-        Msg::Tick => {
-            // No timer state to update in Phase 2 — view reads elapsed time directly.
+        Msg::Tick(elapsed) => {
+            if model.session.status != TestStatus::Running {
+                return Command::None;
+            }
+            model.session.elapsed = elapsed;
+            if elapsed >= model.config.time_limit {
+                model.session.status = TestStatus::Done;
+                model.screen = Screen::Done;
+            }
         }
     }
 
@@ -69,6 +76,8 @@ pub fn update(model: &mut Model, msg: Msg) -> Command {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
     use crate::model::{Config, SessionState, Word};
 
@@ -183,10 +192,59 @@ mod tests {
         update(&mut model, Msg::Tab);
         assert_eq!(model.screen, Screen::Typing);
     }
+
+    #[test]
+    fn tick_before_running_is_noop() {
+        let mut model = model_with_words(&["hello"]);
+        assert_eq!(model.session.status, TestStatus::Waiting);
+        update(&mut model, Msg::Tick(Duration::from_secs(5)));
+        assert_eq!(model.session.status, TestStatus::Waiting);
+        assert_eq!(model.screen, Screen::Typing);
+    }
+
+    #[test]
+    fn tick_updates_elapsed_when_running() {
+        let mut model = model_with_words(&["hello"]);
+        update(&mut model, Msg::Char('h'));
+        update(&mut model, Msg::Tick(Duration::from_secs(5)));
+        assert_eq!(model.session.elapsed, Duration::from_secs(5));
+    }
+
+    #[test]
+    fn tick_at_time_limit_transitions_to_done() {
+        let mut model = model_with_words(&["hello"]);
+        update(&mut model, Msg::Char('h'));
+        update(&mut model, Msg::Tick(Duration::from_secs(15)));
+        assert_eq!(model.session.status, TestStatus::Done);
+        assert_eq!(model.screen, Screen::Done);
+    }
+
+    #[test]
+    fn tick_past_time_limit_transitions_to_done() {
+        let mut model = model_with_words(&["hello"]);
+        update(&mut model, Msg::Char('h'));
+        update(&mut model, Msg::Tick(Duration::from_secs(16)));
+        assert_eq!(model.session.status, TestStatus::Done);
+        assert_eq!(model.screen, Screen::Done);
+    }
+
+    #[test]
+    fn tick_after_done_is_noop() {
+        let mut model = model_with_words(&["hi"]);
+        update(&mut model, Msg::Char('h'));
+        update(&mut model, Msg::Space);
+        assert_eq!(model.screen, Screen::Done);
+        let elapsed_before = model.session.elapsed;
+        update(&mut model, Msg::Tick(Duration::from_secs(100)));
+        assert_eq!(model.session.elapsed, elapsed_before);
+        assert_eq!(model.screen, Screen::Done);
+    }
 }
 
 #[cfg(test)]
 mod prop_tests {
+    use std::time::Duration;
+
     use super::*;
     use crate::model::{Config, SessionState, Word};
     use proptest::prelude::*;
@@ -197,6 +255,7 @@ mod prop_tests {
             Just(Msg::Char('z')),
             Just(Msg::Backspace),
             Just(Msg::Space),
+            Just(Msg::Tick(Duration::ZERO)), // zero elapsed won't expire the 15s timer
         ]
     }
 

@@ -1,7 +1,9 @@
+use std::time::Duration;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Msg {
-    #[expect(dead_code)]
-    Tick, // drives the 60fps timer countdown once Running; no-op in Phase 2
+    #[allow(dead_code)]
+    Tick(Duration), // elapsed since test start; fired every frame by main.rs
     Char(char),
     Backspace,
     Space,
