@@ -7,8 +7,8 @@ use ratatui::{
 };
 
 use crate::input::{CharState, char_state};
-use crate::model::{CursorStyle, Model, Screen, TestStatus};
 use crate::metrics;
+use crate::model::{CursorStyle, Model, Screen, TestStatus};
 
 pub fn view(model: &Model, frame: &mut Frame) {
     match model.screen {
@@ -46,8 +46,11 @@ fn render_results(model: &Model, frame: &mut Frame) {
     .split(area);
 
     frame.render_widget(
-        Paragraph::new(Span::styled("kern", Style::new().add_modifier(Modifier::BOLD)))
-            .alignment(Alignment::Center),
+        Paragraph::new(Span::styled(
+            "kern",
+            Style::new().add_modifier(Modifier::BOLD),
+        ))
+        .alignment(Alignment::Center),
         vertical[1],
     );
 
@@ -228,9 +231,9 @@ fn cursor_style(style: &CursorStyle) -> Style {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
     use super::*;
     use crate::model::{Config, Model, Screen, SessionState, Word};
+    use std::time::Duration;
 
     fn test_model(words: &[&str], current_word: usize, typed: &[&str]) -> Model {
         let mut session_words: Vec<Word> = words.iter().map(|w| Word::new(w)).collect();
