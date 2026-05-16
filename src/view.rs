@@ -14,6 +14,8 @@ pub fn view(model: &Model, frame: &mut Frame) {
     match model.screen {
         Screen::Done => render_results(model, frame),
         Screen::Typing => render_typing(model, frame),
+        // Quitting is handled by the main loop (terminal restore + exit).
+        // Rendering one last frame is unnecessary and could cause flicker.
         Screen::Quitting => {}
     }
 }
@@ -51,7 +53,7 @@ fn render_results(model: &Model, frame: &mut Frame) {
 
     frame.render_widget(
         Paragraph::new(Span::styled(
-            "wpm         raw wpm         acc",
+            "  wpm       raw wpm        acc",
             Style::new().dim(),
         ))
         .alignment(Alignment::Center),
@@ -60,11 +62,11 @@ fn render_results(model: &Model, frame: &mut Frame) {
 
     frame.render_widget(
         Paragraph::new(Line::from(vec![
-            Span::raw(format!("{:.0}", wpm_val)),
-            Span::raw("           "),
-            Span::raw(format!("{:.0}", raw_val)),
-            Span::raw("           "),
-            Span::raw(format!("{:.0}%", acc_val)),
+            Span::raw(format!("{:>5.0}", wpm_val)),
+            Span::raw("       "),
+            Span::raw(format!("{:>5.0}", raw_val)),
+            Span::raw("       "),
+            Span::raw(format!("{:>4.0}%", acc_val)),
         ]))
         .alignment(Alignment::Center),
         vertical[4],
@@ -140,6 +142,8 @@ fn word_line_indices(words: &[crate::model::Word], width: u16) -> Vec<usize> {
     let mut line_width = 0usize;
 
     for (i, word) in words.iter().enumerate() {
+        // Clamp to available width so a single oversized word doesn't
+        // cascade every subsequent word onto its own line.
         let word_len = word.chars.len().min(max_width.max(1));
         let needed = if line_width == 0 {
             word_len
@@ -167,6 +171,8 @@ fn build_word_lines<'a>(model: &Model, width: u16) -> Vec<Line<'a>> {
     let line_indices = word_line_indices(words, width);
     let current_word = model.session.current_word.min(words.len() - 1);
     let current_line = line_indices[current_word];
+    // Once the cursor reaches line 2, scroll so it stays at the bottom of the 3-line
+    // window. For lines 0 and 1 no scroll occurs, showing context ahead of the cursor.
     let scroll = current_line.saturating_sub(2);
 
     let total_lines = line_indices.last().copied().unwrap_or(0) + 1;
@@ -180,6 +186,10 @@ fn build_word_lines<'a>(model: &Model, width: u16) -> Vec<Line<'a>> {
         }
 
         for (char_idx, &ch) in word.chars.iter().enumerate() {
+            // Cursor sits at the next untyped character of the active word.
+            // When a word is fully typed, typed.len() == chars.len(), so
+            // this condition is never true and the cursor naturally disappears
+            // until Space is pressed to commit the word.
             let is_cursor =
                 word_idx == current_word && char_idx == word.typed.len() && !word.committed;
 
