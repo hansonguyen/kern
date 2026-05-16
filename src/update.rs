@@ -200,6 +200,7 @@ mod tests {
         update(&mut model, Msg::Tick(Duration::from_secs(5)));
         assert_eq!(model.session.status, TestStatus::Waiting);
         assert_eq!(model.screen, Screen::Typing);
+        assert_eq!(model.session.elapsed, Duration::ZERO);
     }
 
     #[test]
