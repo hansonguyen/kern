@@ -11,10 +11,9 @@ expression: output
                                                                                 
                                                                                 
                                                                                 
-kern  15s  [tab] restart                                                        
+                                      kern                                      
                                                                                 
-the quick brown fox                                                             
+                         wpm         raw wpm         acc                        
+                          12           18           85%                         
                                                                                 
-                                                                                
-                                                                                
-[esc] quit
+                           [tab] restart   [esc] quit

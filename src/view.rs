@@ -8,35 +8,82 @@ use ratatui::{
 
 use crate::input::{CharState, char_state};
 use crate::model::{CursorStyle, Model, Screen, TestStatus};
+use crate::metrics;
 
 pub fn view(model: &Model, frame: &mut Frame) {
     match model.screen {
-        Screen::Done => render_done(frame),
+        Screen::Done => render_results(model, frame),
         Screen::Typing => render_typing(model, frame),
-        // Quitting is handled by the main loop (terminal restore + exit).
-        // Rendering one last frame is unnecessary and could cause flicker.
         Screen::Quitting => {}
     }
 }
 
-fn render_done(frame: &mut Frame) {
+fn render_results(model: &Model, frame: &mut Frame) {
     let area = frame.area();
-    let msg = Paragraph::new("test complete — press tab to restart").alignment(Alignment::Center);
+
+    let correct_words = metrics::count_correct_words(&model.session.words);
+    let committed_words = metrics::count_committed_words(&model.session.words);
+    let correct_chars = metrics::count_correct_chars(&model.session.words);
+    let total_chars = metrics::count_total_chars_typed(&model.session.words);
+    let elapsed = model.session.elapsed;
+
+    let wpm_val = metrics::wpm(correct_words, elapsed);
+    let raw_val = metrics::raw_wpm(committed_words, elapsed);
+    let acc_val = metrics::accuracy(correct_chars, total_chars);
 
     let vertical = Layout::vertical([
         Constraint::Fill(1),
-        Constraint::Length(1),
+        Constraint::Length(1), // "kern"
+        Constraint::Length(1), // spacer
+        Constraint::Length(1), // metric labels
+        Constraint::Length(1), // metric values
+        Constraint::Length(1), // spacer
+        Constraint::Length(1), // footer
         Constraint::Fill(1),
     ])
     .split(area);
 
-    frame.render_widget(msg, vertical[1]);
+    frame.render_widget(
+        Paragraph::new(Span::styled("kern", Style::new().add_modifier(Modifier::BOLD)))
+            .alignment(Alignment::Center),
+        vertical[1],
+    );
+
+    frame.render_widget(
+        Paragraph::new(Span::styled(
+            "wpm         raw wpm         acc",
+            Style::new().dim(),
+        ))
+        .alignment(Alignment::Center),
+        vertical[3],
+    );
+
+    frame.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::raw(format!("{:.0}", wpm_val)),
+            Span::raw("           "),
+            Span::raw(format!("{:.0}", raw_val)),
+            Span::raw("           "),
+            Span::raw(format!("{:.0}%", acc_val)),
+        ]))
+        .alignment(Alignment::Center),
+        vertical[4],
+    );
+
+    frame.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::styled("[tab] restart", Style::new().dim()),
+            Span::raw("   "),
+            Span::styled("[esc] quit", Style::new().dim()),
+        ]))
+        .alignment(Alignment::Center),
+        vertical[6],
+    );
 }
 
 fn render_typing(model: &Model, frame: &mut Frame) {
     let area = frame.area();
 
-    // Constrain content width to 80 chars and center it horizontally.
     let horizontal = Layout::horizontal([
         Constraint::Fill(1),
         Constraint::Max(80),
@@ -60,34 +107,32 @@ fn render_typing(model: &Model, frame: &mut Frame) {
     let words_area = vertical[3];
     let footer_area = vertical[5];
 
-    // Header
-    let status_text = match model.session.status {
-        TestStatus::Waiting | TestStatus::Running => {
-            format!("words: {}", model.config.word_count)
-        }
+    // Header: show countdown timer. Static when Waiting, live when Running.
+    let countdown = model
+        .config
+        .time_limit
+        .saturating_sub(model.session.elapsed);
+    let time_text = match model.session.status {
+        TestStatus::Waiting | TestStatus::Running => format!("{}s", countdown.as_secs()),
         TestStatus::Done => String::from("done"),
     };
     let header = Paragraph::new(Line::from(vec![
         Span::styled("kern", Style::new().add_modifier(Modifier::BOLD)),
         Span::raw("  "),
-        Span::styled(status_text, Style::new().dim()),
+        Span::styled(time_text, Style::new().dim()),
         Span::raw("  "),
         Span::styled("[tab] restart", Style::new().dim()),
     ]));
     frame.render_widget(header, header_area);
 
-    // Word block
     let word_lines = build_word_lines(model, words_area.width);
     let words_widget = Paragraph::new(word_lines);
     frame.render_widget(words_widget, words_area);
 
-    // Footer
     let footer = Paragraph::new(Span::styled("[esc] quit", Style::new().dim()));
     frame.render_widget(footer, footer_area);
 }
 
-// Returns a vec where result[i] is the line index for words[i], given the available width.
-// Words that don't fit on a line start a new one; spaces between words count as 1 char.
 fn word_line_indices(words: &[crate::model::Word], width: u16) -> Vec<usize> {
     let max_width = width as usize;
     let mut line_for_word = vec![0usize; words.len()];
@@ -95,10 +140,7 @@ fn word_line_indices(words: &[crate::model::Word], width: u16) -> Vec<usize> {
     let mut line_width = 0usize;
 
     for (i, word) in words.iter().enumerate() {
-        // Clamp to available width so a single oversized word doesn't
-        // cascade every subsequent word onto its own line.
         let word_len = word.chars.len().min(max_width.max(1));
-        // Words at the start of a line need no preceding space.
         let needed = if line_width == 0 {
             word_len
         } else {
@@ -116,8 +158,6 @@ fn word_line_indices(words: &[crate::model::Word], width: u16) -> Vec<usize> {
     line_for_word
 }
 
-// Builds the 3 visible lines of the word block for rendering.
-// Scroll position is derived here from current_word's line index — not stored in Model.
 fn build_word_lines<'a>(model: &Model, width: u16) -> Vec<Line<'a>> {
     let words = &model.session.words;
     if words.is_empty() {
@@ -125,32 +165,21 @@ fn build_word_lines<'a>(model: &Model, width: u16) -> Vec<Line<'a>> {
     }
 
     let line_indices = word_line_indices(words, width);
-    // Clamp in case session state briefly has current_word beyond the word list
-    // (e.g., a stale model during a Tab restart before new words are generated).
     let current_word = model.session.current_word.min(words.len() - 1);
     let current_line = line_indices[current_word];
-
-    // Once the cursor reaches line 2, scroll so it stays at the bottom of the 3-line
-    // window. For lines 0 and 1 no scroll occurs, showing context ahead of the cursor.
     let scroll = current_line.saturating_sub(2);
 
-    // Collect all rendered lines, then take the visible slice.
     let total_lines = line_indices.last().copied().unwrap_or(0) + 1;
     let mut all_lines: Vec<Vec<Span<'a>>> = vec![Vec::new(); total_lines];
 
     for (word_idx, (word, &line_idx)) in words.iter().zip(line_indices.iter()).enumerate() {
         let spans = &mut all_lines[line_idx];
 
-        // Space separator — dim so it doesn't distract from the typed text.
         if !spans.is_empty() {
             spans.push(Span::styled(" ", Style::new().dim()));
         }
 
         for (char_idx, &ch) in word.chars.iter().enumerate() {
-            // Cursor sits at the next untyped character of the active word.
-            // When a word is fully typed, typed.len() == chars.len(), so
-            // this condition is never true and the cursor naturally disappears
-            // until Space is pressed to commit the word.
             let is_cursor =
                 word_idx == current_word && char_idx == word.typed.len() && !word.committed;
 
@@ -164,13 +193,10 @@ fn build_word_lines<'a>(model: &Model, width: u16) -> Vec<Line<'a>> {
                 }
             };
 
-            // ch.to_string() allocates per character per frame; acceptable at 25 words
-            // (~125 chars) but worth revisiting in Phase 6 polish.
             spans.push(Span::styled(ch.to_string(), style));
         }
     }
 
-    // Pad to 3 lines so the word block never collapses.
     let mut visible: Vec<Line<'a>> = all_lines
         .into_iter()
         .skip(scroll)
@@ -192,6 +218,7 @@ fn cursor_style(style: &CursorStyle) -> Style {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
     use super::*;
     use crate::model::{Config, Model, Screen, SessionState, Word};
 
@@ -208,7 +235,7 @@ mod tests {
                 words: session_words,
                 current_word,
                 status: crate::model::TestStatus::Running,
-                elapsed: std::time::Duration::ZERO,
+                elapsed: Duration::ZERO,
             },
             config: Config::default(),
         }
@@ -246,6 +273,42 @@ mod tests {
     #[test]
     fn typing_screen_snapshot() {
         let model = test_model(&["the", "quick", "brown", "fox"], 1, &["the", "qu"]);
+        let output = render_to_string(&model, 80, 24);
+        insta::assert_snapshot!(output);
+    }
+
+    #[test]
+    fn results_screen_snapshot() {
+        let words = vec![
+            {
+                let mut w = Word::new("the");
+                w.typed = "the".to_string();
+                w.committed = true;
+                w
+            },
+            {
+                let mut w = Word::new("quick");
+                w.typed = "quikc".to_string(); // wrong — not counted in wpm
+                w.committed = true;
+                w
+            },
+            {
+                let mut w = Word::new("brown");
+                w.typed = "brown".to_string();
+                w.committed = true;
+                w
+            },
+        ];
+        let model = Model {
+            screen: Screen::Done,
+            session: SessionState {
+                words,
+                current_word: 2,
+                status: crate::model::TestStatus::Done,
+                elapsed: Duration::from_secs(10),
+            },
+            config: Config::default(),
+        };
         let output = render_to_string(&model, 80, 24);
         insta::assert_snapshot!(output);
     }
