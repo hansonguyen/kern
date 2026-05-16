@@ -13,6 +13,8 @@ pub fn view(model: &Model, frame: &mut Frame) {
     match model.screen {
         Screen::Done => render_done(frame),
         Screen::Typing => render_typing(model, frame),
+        // Quitting is handled by the main loop (terminal restore + exit).
+        // Rendering one last frame is unnecessary and could cause flicker.
         Screen::Quitting => {}
     }
 }
@@ -94,7 +96,9 @@ fn word_line_indices(words: &[crate::model::Word], width: u16) -> Vec<usize> {
     let mut line_width = 0usize;
 
     for (i, word) in words.iter().enumerate() {
-        let word_len = word.chars.len();
+        // Clamp to available width so a single oversized word doesn't
+        // cascade every subsequent word onto its own line.
+        let word_len = word.chars.len().min(max_width.max(1));
         // Words at the start of a line need no preceding space.
         let needed = if line_width == 0 { word_len } else { 1 + word_len };
 
@@ -118,10 +122,13 @@ fn build_word_lines<'a>(model: &Model, width: u16) -> Vec<Line<'a>> {
     }
 
     let line_indices = word_line_indices(words, width);
-    let current_word = model.session.current_word;
+    // Clamp in case session state briefly has current_word beyond the word list
+    // (e.g., a stale model during a Tab restart before new words are generated).
+    let current_word = model.session.current_word.min(words.len() - 1);
     let current_line = line_indices[current_word];
 
-    // Keep the cursor's line as the bottom of the visible window once we've scrolled at all.
+    // Once the cursor reaches line 2, scroll so it stays at the bottom of the 3-line
+    // window. For lines 0 and 1 no scroll occurs, showing context ahead of the cursor.
     let scroll = current_line.saturating_sub(2);
 
     // Collect all rendered lines, then take the visible slice.
@@ -138,6 +145,9 @@ fn build_word_lines<'a>(model: &Model, width: u16) -> Vec<Line<'a>> {
 
         for (char_idx, &ch) in word.chars.iter().enumerate() {
             // Cursor sits at the next untyped character of the active word.
+            // When a word is fully typed, typed.len() == chars.len(), so
+            // this condition is never true and the cursor naturally disappears
+            // until Space is pressed to commit the word.
             let is_cursor = word_idx == current_word
                 && char_idx == word.typed.len()
                 && !word.committed;
@@ -152,6 +162,8 @@ fn build_word_lines<'a>(model: &Model, width: u16) -> Vec<Line<'a>> {
                 }
             };
 
+            // ch.to_string() allocates per character per frame; acceptable at 25 words
+            // (~125 chars) but worth revisiting in Phase 6 polish.
             spans.push(Span::styled(ch.to_string(), style));
         }
     }
