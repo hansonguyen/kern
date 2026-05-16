@@ -208,6 +208,7 @@ mod tests {
                 words: session_words,
                 current_word,
                 status: crate::model::TestStatus::Running,
+                elapsed: std::time::Duration::ZERO,
             },
             config: Config::default(),
         }

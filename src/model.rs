@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Screen {
     Typing,
@@ -43,6 +45,8 @@ pub struct Config {
     pub word_count: usize,
     pub cursor_style: CursorStyle,
     #[expect(dead_code)]
+    pub time_limit: Duration,
+    #[expect(dead_code)]
     pub punctuation: bool, // stubbed; wired in Phase 3
     #[expect(dead_code)]
     pub numbers: bool, // stubbed; wired in Phase 3
@@ -53,6 +57,7 @@ impl Default for Config {
         Config {
             word_count: 25,
             cursor_style: CursorStyle::Block,
+            time_limit: Duration::from_secs(15),
             punctuation: false,
             numbers: false,
         }
@@ -64,6 +69,8 @@ pub struct SessionState {
     pub words: Vec<Word>,
     pub current_word: usize,
     pub status: TestStatus,
+    #[expect(dead_code)]
+    pub elapsed: Duration,
 }
 
 impl SessionState {
@@ -72,6 +79,7 @@ impl SessionState {
             words,
             current_word: 0,
             status: TestStatus::Waiting,
+            elapsed: Duration::ZERO,
         }
     }
 }
