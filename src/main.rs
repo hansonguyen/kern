@@ -1,6 +1,7 @@
 mod commands;
 mod generator;
 mod input;
+mod metrics;
 mod model;
 mod msg;
 mod update;
