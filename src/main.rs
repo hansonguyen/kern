@@ -56,6 +56,10 @@ fn run(terminal: &mut ratatui::DefaultTerminal) -> Result<()> {
         if timer_start.is_some() && model.session.status == TestStatus::Waiting {
             timer_start = None;
         }
+        // Freeze timer when test finishes so elapsed is stable on the results screen.
+        if timer_start.is_some() && model.session.status == TestStatus::Done {
+            timer_start = None;
+        }
 
         // Drive countdown — fire Tick every frame with current elapsed.
         let elapsed = timer_start.map(|t| t.elapsed()).unwrap_or(Duration::ZERO);
