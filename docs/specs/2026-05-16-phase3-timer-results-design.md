@@ -111,9 +111,9 @@ pub fn count_total_chars_typed(words: &[Word]) -> u64   // sum of typed.len() ac
 
 **Definitions:**
 - **Correct word**: `word.committed == true` AND every `word.typed.chars().nth(i) == Some(word.chars[i])` for all i
-- **WPM**: `correct_words as f64 / elapsed.as_secs_f64() * 60.0`
-- **Raw WPM**: `committed_words as f64 / elapsed.as_secs_f64() * 60.0`
-- **Accuracy**: `correct_chars as f64 / total_chars_typed as f64 * 100.0` (0.0 if nothing typed)
+- **WPM**: `correct_words as f64 / elapsed.as_secs_f64() * 60.0` — returns `0.0` if `elapsed < 1ms`
+- **Raw WPM**: `committed_words as f64 / elapsed.as_secs_f64() * 60.0` — returns `0.0` if `elapsed < 1ms`
+- **Accuracy**: `correct_chars as f64 / total_chars_typed as f64 * 100.0` — returns `0.0` if nothing typed
 
 Metrics are computed in `view` on demand — not stored in `Model`. The session's word and elapsed state is available on the results screen before Tab resets it.
 
