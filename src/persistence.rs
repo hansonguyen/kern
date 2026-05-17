@@ -73,15 +73,15 @@ mod tests {
             0.0f64..200.0f64,
             0.0f64..100.0f64,
         )
-            .prop_map(|(timestamp, duration_secs, wpm, raw_wpm, accuracy)| {
-                SessionResult {
+            .prop_map(
+                |(timestamp, duration_secs, wpm, raw_wpm, accuracy)| SessionResult {
                     timestamp,
                     duration_secs,
                     wpm,
                     raw_wpm,
                     accuracy,
-                }
-            })
+                },
+            )
     }
 
     #[test]
