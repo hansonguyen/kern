@@ -15,14 +15,33 @@ mod integration_tests;
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
+use clap::Parser;
 use commands::{Command, execute_command};
 use model::{Model, TestStatus};
 use msg::Msg;
 use rand::rngs::SmallRng;
 use update::update;
+use update_informer::{Check, registry};
 use view::view;
 
+#[derive(Parser)]
+#[command(version, about)]
+struct Cli {}
+
 fn main() -> Result<()> {
+    Cli::parse();
+
+    std::thread::spawn(|| {
+        let informer = update_informer::new(
+            registry::Crates,
+            env!("CARGO_PKG_NAME"),
+            env!("CARGO_PKG_VERSION"),
+        );
+        if let Some(version) = informer.check_version().ok().flatten() {
+            eprintln!("A new version {version} is available — run `cargo install ktype` to upgrade.");
+        }
+    });
+
     let mut terminal = ratatui::init();
     let result = run(&mut terminal);
     ratatui::restore();
@@ -34,7 +53,7 @@ fn run(terminal: &mut ratatui::DefaultTerminal) -> Result<()> {
     let mut model = Model::default();
     match persistence::load() {
         Ok(history) => model.history = history,
-        Err(e) => eprintln!("kern: failed to load stats: {e}"),
+        Err(e) => eprintln!("ktype: failed to load stats: {e}"),
     }
     // timer_start is infrastructure — not app state. Owned here alongside rng.
     let mut timer_start: Option<Instant> = None;
