@@ -4,6 +4,7 @@ mod input;
 mod metrics;
 mod model;
 mod msg;
+mod persistence;
 mod stats;
 mod update;
 mod view;
