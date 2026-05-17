@@ -52,6 +52,7 @@ pub(crate) fn append_to(path: &Path, result: &SessionResult) -> Result<(), Persi
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
     use tempfile::TempDir;
 
     fn sample_result() -> SessionResult {
@@ -62,6 +63,25 @@ mod tests {
             raw_wpm: 65.0,
             accuracy: 92.0,
         }
+    }
+
+    fn arb_result() -> impl Strategy<Value = SessionResult> {
+        (
+            any::<i64>(),
+            any::<u64>(),
+            0.0f64..200.0f64,
+            0.0f64..200.0f64,
+            0.0f64..100.0f64,
+        )
+            .prop_map(|(timestamp, duration_secs, wpm, raw_wpm, accuracy)| {
+                SessionResult {
+                    timestamp,
+                    duration_secs,
+                    wpm,
+                    raw_wpm,
+                    accuracy,
+                }
+            })
     }
 
     #[test]
@@ -92,5 +112,28 @@ mod tests {
         append_to(&path, &sample_result()).unwrap();
         let loaded = load_from(&path).unwrap();
         assert_eq!(loaded.len(), 2);
+    }
+
+    proptest! {
+        #[test]
+        fn append_n_load_n_round_trip(results in prop::collection::vec(arb_result(), 1..=20)) {
+            let dir = TempDir::new().unwrap();
+            let path = dir.path().join("stats.json");
+
+            for result in &results {
+                append_to(&path, result).unwrap();
+            }
+
+            let loaded = load_from(&path).unwrap();
+            prop_assert_eq!(loaded.len(), results.len());
+
+            for (orig, loaded_entry) in results.iter().zip(loaded.iter()) {
+                prop_assert_eq!(orig.timestamp, loaded_entry.timestamp);
+                prop_assert_eq!(orig.duration_secs, loaded_entry.duration_secs);
+                prop_assert!((orig.wpm - loaded_entry.wpm).abs() < 1e-9);
+                prop_assert!((orig.raw_wpm - loaded_entry.raw_wpm).abs() < 1e-9);
+                prop_assert!((orig.accuracy - loaded_entry.accuracy).abs() < 1e-9);
+            }
+        }
     }
 }
