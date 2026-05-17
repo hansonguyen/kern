@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use rand::SeedableRng;
 use rand::rngs::SmallRng;
 use tempfile::TempDir;
@@ -83,4 +81,28 @@ fn tab_from_done_resets_session() {
     assert_eq!(model.session.words.len(), model.config.word_count);
     // Duration cycles: 0 → 1 (15s → 30s)
     assert_eq!(model.config.selected_duration_idx, 1);
+}
+
+#[test]
+fn persistence_end_to_end() {
+    let dir = TempDir::new().unwrap();
+    let path = dir.path().join("stats.json");
+
+    let result = SessionResult {
+        timestamp: 1_234_567_890,
+        duration_secs: 15,
+        wpm: 42.5,
+        raw_wpm: 48.0,
+        accuracy: 88.5,
+    };
+
+    persistence::append_to(&path, &result).unwrap();
+    let loaded = persistence::load_from(&path).unwrap();
+
+    assert_eq!(loaded.len(), 1);
+    assert_eq!(loaded[0].timestamp, result.timestamp);
+    assert_eq!(loaded[0].duration_secs, result.duration_secs);
+    assert!((loaded[0].wpm - result.wpm).abs() < 1e-9);
+    assert!((loaded[0].raw_wpm - result.raw_wpm).abs() < 1e-9);
+    assert!((loaded[0].accuracy - result.accuracy).abs() < 1e-9);
 }
