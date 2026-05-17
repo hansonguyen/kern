@@ -9,6 +9,9 @@ mod stats;
 mod update;
 mod view;
 
+#[cfg(test)]
+mod integration_tests;
+
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
