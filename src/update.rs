@@ -49,6 +49,15 @@ pub fn update(model: &mut Model, msg: Msg) -> Command {
             if word.typed.len() < word.chars.len() {
                 word.typed.push(c);
             }
+            let is_last = session.current_word == session.words.len() - 1;
+            let word_full = session.words[session.current_word].typed.len()
+                == session.words[session.current_word].chars.len();
+            if is_last && word_full {
+                session.words[session.current_word].committed = true;
+                session.status = TestStatus::Done;
+                model.screen = Screen::Done;
+                return Command::SaveStats(build_stats_payload(model));
+            }
         }
 
         Msg::Backspace => {
@@ -189,6 +198,37 @@ mod tests {
         let mut model = model_with_words(&["hi"]);
         update(&mut model, Msg::Char('h'));
         update(&mut model, Msg::Space);
+        assert_eq!(model.session.status, TestStatus::Done);
+        assert_eq!(model.screen, Screen::Done);
+    }
+
+    #[test]
+    fn last_char_of_last_word_auto_ends_test() {
+        let mut model = model_with_words(&["hi"]);
+        update(&mut model, Msg::Char('h'));
+        assert_eq!(model.session.status, TestStatus::Running);
+        update(&mut model, Msg::Char('i'));
+        assert_eq!(model.session.status, TestStatus::Done);
+        assert_eq!(model.screen, Screen::Done);
+        assert!(model.session.words[0].committed);
+    }
+
+    #[test]
+    fn last_char_of_last_word_returns_save_stats_command() {
+        let mut model = model_with_words(&["hi"]);
+        update(&mut model, Msg::Char('h'));
+        let cmd = update(&mut model, Msg::Char('i'));
+        assert!(matches!(cmd, Command::SaveStats(_)));
+    }
+
+    #[test]
+    fn last_char_on_multi_word_test_auto_ends() {
+        let mut model = model_with_words(&["go", "hi"]);
+        update(&mut model, Msg::Char('g'));
+        update(&mut model, Msg::Space); // commit first word, advance
+        update(&mut model, Msg::Char('h'));
+        assert_eq!(model.session.status, TestStatus::Running);
+        update(&mut model, Msg::Char('i')); // last char of last word
         assert_eq!(model.session.status, TestStatus::Done);
         assert_eq!(model.screen, Screen::Done);
     }
