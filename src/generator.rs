@@ -239,3 +239,42 @@ mod tests {
         assert_eq!(generate(0, &mut rng).len(), 0);
     }
 }
+
+#[cfg(test)]
+mod prop_tests {
+    use super::*;
+    use proptest::prelude::*;
+    use rand::SeedableRng;
+    use rand::rngs::SmallRng;
+
+    proptest! {
+        #[test]
+        fn generate_count_is_exact(count in 1usize..=50, seed in any::<[u8; 32]>()) {
+            let mut rng = SmallRng::from_seed(seed);
+            prop_assert_eq!(generate(count, &mut rng).len(), count);
+        }
+
+        #[test]
+        fn generate_all_non_empty(count in 1usize..=50, seed in any::<[u8; 32]>()) {
+            let mut rng = SmallRng::from_seed(seed);
+            let words = generate(count, &mut rng);
+            for word in &words {
+                prop_assert!(!word.chars.is_empty(), "word had empty chars");
+            }
+        }
+
+        #[test]
+        fn generate_all_lowercase_ascii(count in 1usize..=50, seed in any::<[u8; 32]>()) {
+            let mut rng = SmallRng::from_seed(seed);
+            let words = generate(count, &mut rng);
+            for word in &words {
+                for &c in &word.chars {
+                    prop_assert!(
+                        c.is_ascii_lowercase(),
+                        "char '{}' is not lowercase ASCII", c
+                    );
+                }
+            }
+        }
+    }
+}
