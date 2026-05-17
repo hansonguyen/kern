@@ -19,3 +19,22 @@ fn two_word_model() -> Model {
         history: Vec::new(),
     }
 }
+
+#[test]
+fn full_session_via_word_completion() {
+    let mut rng = SmallRng::seed_from_u64(0);
+    let mut model = two_word_model();
+
+    // Type one char of "hi", commit with Space → advances to "ok"
+    update(&mut model, Msg::Char('h'));
+    let cmd = update(&mut model, Msg::Space);
+    execute_command(&mut model, cmd, &mut rng);
+
+    // Type one char of "ok", commit with Space → last word → Done + SaveStats
+    update(&mut model, Msg::Char('o'));
+    let cmd = update(&mut model, Msg::Space);
+    execute_command(&mut model, cmd, &mut rng);
+
+    assert_eq!(model.screen, Screen::Done);
+    assert_eq!(model.history.len(), 1);
+}
