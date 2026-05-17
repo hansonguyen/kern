@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 cargo build              # build
-cargo run                # run kern
+cargo run                # run ktype
 cargo test               # run tests (std runner)
 cargo nextest run        # run tests with nextest (preferred)
 cargo nextest run <name> # run a single test by name substring
@@ -30,7 +30,7 @@ input.rs       — keystroke routing and raw character handling
 generator.rs   — random word generation (with punctuation/numbers toggles)
 metrics.rs     — WPM, raw WPM, accuracy, consistency calculations
 stats.rs       — session stats types
-persistence.rs — JSON R/W to ~/.config/kern/stats.json
+persistence.rs — JSON R/W to ~/.config/ktype/stats.json
 ```
 
 The loop in `main.rs` polls events at 16ms (≈60fps), dispatches to `handle_event`, then redraws. `should_quit` on the app struct is the exit signal.
@@ -40,7 +40,7 @@ The loop in `main.rs` polls events at 16ms (≈60fps), dispatches to `handle_eve
 - `update` must remain pure — no I/O, no side effects; return a `Command` for anything async/effectful
 - `view` must remain pure — read `Model` only, never mutate
 - Character state (untyped / correct / incorrect / cursor) is the core data primitive for the test screen
-- Stats persist to `~/.config/kern/stats.json`; future migration path is SQLite
+- Stats persist to `~/.config/ktype/stats.json`; future migration path is SQLite
 - Use `thiserror` for domain errors, `anyhow` for top-level CLI error propagation
 - Property tests (`proptest`) cover `update` invariants and metric calculations; snapshot tests (`insta`) cover rendered UI frames
 

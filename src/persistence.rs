@@ -14,7 +14,7 @@ fn stats_path() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     PathBuf::from(home)
         .join(".config")
-        .join("kern")
+        .join("ktype")
         .join("stats.json")
 }
 

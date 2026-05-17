@@ -1,6 +1,6 @@
-# Contributing to kern
+# Contributing to ktype
 
-Thanks for your interest in kern. Contributions are welcome — bug fixes, features from the roadmap, tests, and documentation.
+Thanks for your interest in ktype. Contributions are welcome — bug fixes, features from the roadmap, tests, and documentation.
 
 ## Getting Started
 
@@ -20,7 +20,7 @@ Thanks for your interest in kern. Contributions are welcome — bug fixes, featu
 
 ## Architecture
 
-kern follows The Elm Architecture (TEA). Read `CLAUDE.md` for the module layout and the core constraints before touching `update.rs` or `view.rs`:
+ktype follows The Elm Architecture (TEA). Read `CLAUDE.md` for the module layout and the core constraints before touching `update.rs` or `view.rs`:
 
 - `update` must be pure — no I/O or side effects; return a `Command` for anything effectful
 - `view` must be pure — read `Model` only, never mutate state
@@ -38,11 +38,11 @@ Run snapshot review after UI changes: `cargo insta review`
 
 ## Roadmap
 
-The MVP build order is tracked in `docs/kern_mvp.md`. If you want to work on something not yet started, open an issue first to align on scope.
+The MVP build order is tracked in `docs/ktype_mvp.md`. If you want to work on something not yet started, open an issue first to align on scope.
 
 ## Issues and Discussions
 
-- Bug reports: include your terminal, OS, and `kern --version` output
+- Bug reports: include your terminal, OS, and `ktype --version` output
 - Feature requests: explain the use case, not just the solution
 - Breaking changes: always discuss in an issue before implementing
 

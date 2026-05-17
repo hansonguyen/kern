@@ -1,13 +1,13 @@
 ---
 name: kern-release
-description: Use when releasing a new version of kern to crates.io. Covers pre-flight checks, semantic version determination from conventional commits, Cargo.toml bump, git tag, and crates.io publish.
+description: Use when releasing a new version of ktype to crates.io. Covers pre-flight checks, semantic version determination from conventional commits, Cargo.toml bump, git tag, and crates.io publish.
 ---
 
-# kern Release
+# ktype Release
 
 ## Overview
 
-Guides a full kern release: pre-flight → semver determination → version bump → commit → tag → push.
+Guides a full ktype release: pre-flight → semver determination → version bump → commit → tag → push.
 
 Pushing the `vX.Y.Z` tag triggers the `publish` GitHub Actions job automatically — `cargo publish` runs in CI, not locally.
 
@@ -147,10 +147,10 @@ After both pushes succeed, confirm:
 
 ```
 Tag vX.Y.Z pushed. The CI publish job is now running:
-https://github.com/hansonguyen/kern/actions
+https://github.com/hansonguyen/ktype/actions
 
 cargo publish runs automatically once the ci matrix passes.
-crates.io page: https://crates.io/crates/kern
+crates.io page: https://crates.io/crates/ktype
 ```
 
 ---
