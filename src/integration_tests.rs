@@ -38,3 +38,23 @@ fn full_session_via_word_completion() {
     assert_eq!(model.screen, Screen::Done);
     assert_eq!(model.history.len(), 1);
 }
+
+#[test]
+fn timer_expiry_saves_stats() {
+    let mut rng = SmallRng::seed_from_u64(0);
+    let mut model = two_word_model();
+
+    // Start the session (Waiting → Running)
+    update(&mut model, Msg::Char('h'));
+    assert_eq!(model.session.status, TestStatus::Running);
+
+    // Tick exactly at the time limit → triggers Done via timer path (not Space)
+    let time_limit = model.config.time_limit;
+    let cmd = update(&mut model, Msg::Tick(time_limit));
+    assert!(matches!(cmd, Command::SaveStats(_)));
+    execute_command(&mut model, cmd, &mut rng);
+
+    assert_eq!(model.screen, Screen::Done);
+    assert_eq!(model.session.status, TestStatus::Done);
+    assert_eq!(model.history.len(), 1);
+}
