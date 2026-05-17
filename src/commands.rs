@@ -43,8 +43,8 @@ pub fn execute_command(model: &mut Model, cmd: Command, rng: &mut SmallRng) {
                 raw_wpm: payload.raw_wpm,
                 accuracy: payload.accuracy,
             };
-            model.history.push(result.clone());
-            if let Err(e) = persistence::append(&result) {
+            model.history.push(result);
+            if let Err(e) = persistence::append(model.history.last().unwrap()) {
                 eprintln!("kern: failed to save stats: {e}");
             }
         }
