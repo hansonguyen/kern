@@ -1,5 +1,5 @@
 ---
-name: kern-release
+name: ktype-release
 description: Use when releasing a new version of ktype to crates.io. Covers pre-flight checks, semantic version determination from conventional commits, Cargo.toml bump, git tag, and crates.io publish.
 ---
 
