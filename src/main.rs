@@ -38,7 +38,9 @@ fn main() -> Result<()> {
             env!("CARGO_PKG_VERSION"),
         );
         if let Some(version) = informer.check_version().ok().flatten() {
-            eprintln!("A new version {version} is available — run `cargo install ktype` to upgrade.");
+            eprintln!(
+                "A new version {version} is available — run `cargo install ktype` to upgrade."
+            );
         }
     });
 
