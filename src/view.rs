@@ -272,7 +272,7 @@ fn cursor_style(style: &CursorStyle) -> Style {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{Config, Model, Screen, SessionState, Word};
+    use crate::model::{Config, DURATION_OPTIONS, Model, Screen, SessionState, Word};
     use std::time::Duration;
 
     fn test_model(words: &[&str], current_word: usize, typed: &[&str]) -> Model {
@@ -389,5 +389,20 @@ mod tests {
         model.session.elapsed = Duration::from_secs(5);
         let output = render_to_string(&model, 80, 24);
         insta::assert_snapshot!("running_elapsed_5s", output);
+    }
+
+    #[test]
+    fn typing_screen_duration_variants_snapshot() {
+        let render_with_duration = |idx: usize| {
+            let mut model = test_model(&["the", "quick", "brown"], 0, &[]);
+            model.session.status = crate::model::TestStatus::Waiting;
+            model.config.selected_duration_idx = idx;
+            model.config.time_limit = Duration::from_secs(DURATION_OPTIONS[idx]);
+            render_to_string(&model, 80, 24)
+        };
+
+        insta::assert_snapshot!("duration_15s", render_with_duration(0));
+        insta::assert_snapshot!("duration_30s", render_with_duration(1));
+        insta::assert_snapshot!("duration_60s", render_with_duration(2));
     }
 }
