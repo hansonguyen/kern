@@ -41,7 +41,7 @@ kern starts a 15-second timed test immediately. Press `Tab` to cycle through dur
 
 | Key               | Action                                    |
 |-------------------|-------------------------------------------|
-| `Tab`             | Cycle duration (waiting) / Restart test   |
+| `Tab`             | Cycle duration (when not typing) / Restart |
 | `Space` / `Enter` | Commit current word                       |
 | `Backspace`       | Delete last character                     |
 | `Esc`             | Quit                                      |
