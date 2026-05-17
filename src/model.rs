@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+use crate::stats::SessionResult;
+
 pub const DURATION_OPTIONS: [u64; 3] = [15, 30, 60];
 
 #[derive(Debug, Clone, PartialEq)]
@@ -92,6 +94,7 @@ pub struct Model {
     pub screen: Screen,
     pub session: SessionState,
     pub config: Config,
+    pub history: Vec<SessionResult>,
 }
 
 impl Default for Model {
@@ -102,6 +105,7 @@ impl Default for Model {
             screen: Screen::Typing,
             session: SessionState::new(Vec::new()),
             config: Config::default(),
+            history: Vec::new(),
         }
     }
 }

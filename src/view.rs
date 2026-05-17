@@ -291,6 +291,7 @@ mod tests {
                 elapsed: Duration::ZERO,
             },
             config: Config::default(),
+            history: Vec::new(),
         }
     }
 
@@ -369,6 +370,7 @@ mod tests {
                 elapsed: Duration::from_secs(10),
             },
             config: Config::default(),
+            history: Vec::new(),
         };
         let output = render_to_string(&model, 80, 24);
         insta::assert_snapshot!(output);

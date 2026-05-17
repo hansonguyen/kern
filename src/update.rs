@@ -93,6 +93,7 @@ mod tests {
             screen: Screen::Typing,
             session: SessionState::new(words.iter().map(|w| Word::new(w)).collect()),
             config: Config::default(),
+            history: Vec::new(),
         }
     }
 
@@ -316,6 +317,7 @@ mod prop_tests {
             screen: Screen::Typing,
             session: SessionState::new(words.iter().map(|w| Word::new(w)).collect()),
             config: Config::default(),
+            history: Vec::new(),
         }
     }
 
