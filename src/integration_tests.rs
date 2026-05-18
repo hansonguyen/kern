@@ -208,5 +208,9 @@ fn raw_accuracy_includes_corrected_errors() {
     // accuracy = (3 - 1) / 3 * 100 ≈ 66.67%
     assert_eq!(model.screen, Screen::Done);
     let result = model.history.last().expect("stats saved");
-    assert!((result.accuracy - 66.67).abs() < 0.1, "accuracy was {}", result.accuracy);
+    assert!(
+        (result.accuracy - 66.67).abs() < 0.1,
+        "accuracy was {}",
+        result.accuracy
+    );
 }

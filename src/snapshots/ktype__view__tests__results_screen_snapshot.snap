@@ -4,13 +4,11 @@ expression: output
 ---
                            [time] words   [15]  30  60                          
                                                                                 
-                                      ktype                                     
+wpm                                         no data                             
+12                                                                              
                                                                                 
-                           wpm       raw wpm        acc                         
-                             12          18          0%                         
-                                                                                
-                                     no data                                    
-                                                                                
+acc                                                                             
+0%                                                                              
                                                                                 
                                                                                 
                                                                                 
@@ -24,5 +22,7 @@ expression: output
                                                                                 
                                                                                 
                                                                                 
-                                                                                
+test type     raw                              time                             
+time 15       18                               10s                              
+english                                                                         
                         [tab] change/restart   [esc] quit

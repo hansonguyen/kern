@@ -40,20 +40,27 @@ fn render_results(model: &Model, frame: &mut Frame) {
         model.session.total_errors,
     );
 
+    // Horizontally center the results block
+    let outer = Layout::horizontal([
+        Constraint::Fill(1),
+        Constraint::Max(120),
+        Constraint::Fill(1),
+    ])
+    .split(area);
+    let area = outer[1];
+
     let vertical = Layout::vertical([
-        Constraint::Length(1), // config/mode strip
+        Constraint::Length(1), // mode strip
         Constraint::Length(1), // spacer
-        Constraint::Length(1), // "ktype" title
-        Constraint::Length(1), // spacer
-        Constraint::Length(1), // metric labels
-        Constraint::Length(1), // metric values
-        Constraint::Length(1), // spacer
-        Constraint::Fill(1),   // chart
+        Constraint::Fill(1),   // top padding (vertical centering)
+        Constraint::Max(18),   // main content: left stats + chart
+        Constraint::Length(3), // bottom stats row
+        Constraint::Fill(1),   // bottom padding (vertical centering)
         Constraint::Length(1), // footer
     ])
     .split(area);
 
-    // Config/mode strip
+    // Mode strip
     let mut result_header: Vec<Span> = Vec::new();
     result_header.extend(mode_selector_spans(&model.config.test_mode, false));
     result_header.push(Span::raw("   "));
@@ -72,41 +79,132 @@ fn render_results(model: &Model, frame: &mut Frame) {
         vertical[0],
     );
 
-    // Title
+    // Main content: left stats panel | chart
+    let content = Layout::horizontal([
+        Constraint::Length(14),
+        Constraint::Fill(1),
+    ])
+    .split(vertical[3]);
+
+    // Left stats panel
+    let left = Layout::vertical([
+        Constraint::Length(1), // "wpm" label
+        Constraint::Length(1), // wpm value
+        Constraint::Length(1), // spacer
+        Constraint::Length(1), // "acc" label
+        Constraint::Length(1), // acc value
+        Constraint::Fill(1),   // fill
+    ])
+    .split(content[0]);
+
+    frame.render_widget(
+        Paragraph::new(Span::styled("wpm", Style::new().dim())),
+        left[0],
+    );
     frame.render_widget(
         Paragraph::new(Span::styled(
-            "ktype",
+            format!("{:.0}", wpm_val),
+            Style::new().add_modifier(Modifier::BOLD).fg(Color::Yellow),
+        )),
+        left[1],
+    );
+    frame.render_widget(
+        Paragraph::new(Span::styled("acc", Style::new().dim())),
+        left[3],
+    );
+    frame.render_widget(
+        Paragraph::new(Span::styled(
+            format!("{:.0}%", acc_val),
             Style::new().add_modifier(Modifier::BOLD),
-        ))
-        .alignment(Alignment::Center),
-        vertical[2],
+        )),
+        left[4],
     );
 
-    // Metric labels
+    // Chart fills the right side
+    render_chart(model, frame, content[1]);
+
+    // Bottom stats: left (test type) | right (raw + time)
+    let bottom = Layout::horizontal([
+        Constraint::Length(14),
+        Constraint::Fill(1),
+    ])
+    .split(vertical[4]);
+
+    // Bottom-left: test type info
+    let bottom_left = Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Length(1),
+        Constraint::Length(1),
+    ])
+    .split(bottom[0]);
+
+    frame.render_widget(
+        Paragraph::new(Span::styled("test type", Style::new().dim())),
+        bottom_left[0],
+    );
+    let mode_detail = match model.config.test_mode {
+        TestMode::Time => format!(
+            "time {}",
+            DURATION_OPTIONS[model.config.selected_duration_idx]
+        ),
+        TestMode::Words => format!("words {}", model.config.word_count),
+    };
     frame.render_widget(
         Paragraph::new(Span::styled(
-            "  wpm       raw wpm        acc",
-            Style::new().dim(),
-        ))
-        .alignment(Alignment::Center),
-        vertical[4],
+            mode_detail,
+            Style::new().add_modifier(Modifier::BOLD),
+        )),
+        bottom_left[1],
     );
-
-    // Metric values
     frame.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::raw(format!("{:>5.0}", wpm_val)),
-            Span::raw("       "),
-            Span::raw(format!("{:>5.0}", raw_val)),
-            Span::raw("       "),
-            Span::raw(format!("{:>4.0}%", acc_val)),
-        ]))
-        .alignment(Alignment::Center),
-        vertical[5],
+        Paragraph::new(Span::styled("english", Style::new().dim())),
+        bottom_left[2],
     );
 
-    // Chart
-    render_chart(model, frame, vertical[7]);
+    // Bottom-right: raw wpm | time
+    let bottom_right = Layout::horizontal([
+        Constraint::Fill(1),
+        Constraint::Fill(1),
+    ])
+    .split(bottom[1]);
+
+    let br_raw = Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Length(1),
+        Constraint::Length(1),
+    ])
+    .split(bottom_right[0]);
+
+    let br_time = Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Length(1),
+        Constraint::Length(1),
+    ])
+    .split(bottom_right[1]);
+
+    frame.render_widget(
+        Paragraph::new(Span::styled("raw", Style::new().dim())),
+        br_raw[0],
+    );
+    frame.render_widget(
+        Paragraph::new(Span::styled(
+            format!("{:.0}", raw_val),
+            Style::new().add_modifier(Modifier::BOLD),
+        )),
+        br_raw[1],
+    );
+
+    frame.render_widget(
+        Paragraph::new(Span::styled("time", Style::new().dim())),
+        br_time[0],
+    );
+    frame.render_widget(
+        Paragraph::new(Span::styled(
+            format!("{}s", elapsed.as_secs()),
+            Style::new().add_modifier(Modifier::BOLD),
+        )),
+        br_time[1],
+    );
 
     // Footer
     frame.render_widget(
@@ -116,7 +214,7 @@ fn render_results(model: &Model, frame: &mut Frame) {
             Span::styled("[esc] quit", Style::new().dim()),
         ]))
         .alignment(Alignment::Center),
-        vertical[8],
+        vertical[6],
     );
 }
 
@@ -196,7 +294,9 @@ fn render_chart(model: &Model, frame: &mut Frame, area: Rect) {
     for t in (interval..=n_secs).step_by(interval) {
         let col = (t * canvas_width) / n_secs;
         let label = t.to_string();
-        let start = col.saturating_sub(label.len() / 2);
+        let start = col
+            .saturating_sub(label.len() / 2)
+            .min(canvas_width.saturating_sub(label.len()));
         for (j, b) in label.bytes().enumerate() {
             if start + j < canvas_width {
                 x_buf[start + j] = b;
@@ -218,12 +318,15 @@ fn render_chart(model: &Model, frame: &mut Frame, area: Rect) {
             .y_bounds([0.0, y_bound_max])
             .marker(Marker::Braille)
             .paint(|ctx| {
-                // WPM line segments
-                for i in 1..wpm_history.len() {
+                // WPM line segments; wpm_history[i] is the WPM at the end of second i+1.
+                // i=0: flat segment from x=0 to x=1 fills the opening gap.
+                // i>0: connects wpm[i-1] at x=i to wpm[i] at x=i+1.
+                for i in 0..wpm_history.len() {
+                    let y1 = if i == 0 { wpm_history[0] } else { wpm_history[i - 1] };
                     ctx.draw(&CanvasLine {
-                        x1: (i - 1) as f64,
-                        y1: wpm_history[i - 1],
-                        x2: i as f64,
+                        x1: i as f64,
+                        y1,
+                        x2: (i + 1) as f64,
                         y2: wpm_history[i],
                         color: Color::LightBlue,
                     });
@@ -234,7 +337,7 @@ fn render_chart(model: &Model, frame: &mut Frame, area: Rect) {
                         let scaled_y =
                             (delta as f64 / max_error_delta as f64) * max_wpm;
                         ctx.print(
-                            i as f64 + 0.5,
+                            (i + 1) as f64,
                             scaled_y,
                             Line::from(Span::styled(
                                 "×",
