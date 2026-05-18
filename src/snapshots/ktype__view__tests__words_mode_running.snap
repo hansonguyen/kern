@@ -1,6 +1,5 @@
 ---
 source: src/view.rs
-assertion_line: 517
 expression: output
 ---
                                                                                 
@@ -12,7 +11,7 @@ expression: output
                                                                                 
                                                                                 
                                                                                 
-kern  time [words]   10  [25]  50  100   2/4   [tab] restart                    
+ktype  time [words]   10  [25]  50  100   2/4   [tab] restart                   
                                                                                 
 the quick brown fox                                                             
                                                                                 

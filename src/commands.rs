@@ -53,7 +53,7 @@ pub fn execute_command(model: &mut Model, cmd: Command, rng: &mut SmallRng) {
             };
             model.history.push(result);
             if let Err(e) = persistence::append(model.history.last().unwrap()) {
-                eprintln!("kern: failed to save stats: {e}");
+                eprintln!("ktype: failed to save stats: {e}");
             }
         }
     }

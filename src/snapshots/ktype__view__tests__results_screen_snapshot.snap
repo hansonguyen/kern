@@ -12,7 +12,7 @@ expression: output
                                                                                 
                            [time] words   [15]  30  60                          
                                                                                 
-                                      kern                                      
+                                      ktype                                     
                                                                                 
                            wpm       raw wpm        acc                         
                              12          18         85%                         

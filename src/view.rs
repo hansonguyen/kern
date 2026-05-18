@@ -39,7 +39,7 @@ fn render_results(model: &Model, frame: &mut Frame) {
         Constraint::Fill(1),
         Constraint::Length(1), // duration strip
         Constraint::Length(1), // spacer
-        Constraint::Length(1), // "kern"
+        Constraint::Length(1), // "ktype"
         Constraint::Length(1), // spacer
         Constraint::Length(1), // metric labels
         Constraint::Length(1), // metric values
@@ -69,7 +69,7 @@ fn render_results(model: &Model, frame: &mut Frame) {
 
     frame.render_widget(
         Paragraph::new(Span::styled(
-            "kern",
+            "ktype",
             Style::new().add_modifier(Modifier::BOLD),
         ))
         .alignment(Alignment::Center),
@@ -192,7 +192,7 @@ fn render_typing(model: &Model, frame: &mut Frame) {
 
     let is_running = model.session.status == TestStatus::Running;
     let mut header_spans: Vec<Span> = vec![
-        Span::styled("kern", Style::new().add_modifier(Modifier::BOLD)),
+        Span::styled("ktype", Style::new().add_modifier(Modifier::BOLD)),
         Span::raw("  "),
     ];
 

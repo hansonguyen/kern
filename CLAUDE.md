@@ -16,7 +16,7 @@ cargo fmt                # format
 
 ## Architecture
 
-Kern follows **The Elm Architecture (TEA)**. All state lives in `Model`, all events flow as `Msg`, `update` is the only place state changes, and `view` is pure rendering.
+ktype follows **The Elm Architecture (TEA)**. All state lives in `Model`, all events flow as `Msg`, `update` is the only place state changes, and `view` is pure rendering.
 
 ```
 main.rs        — terminal init/restore, 60fps event loop
