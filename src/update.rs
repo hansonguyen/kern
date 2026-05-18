@@ -42,10 +42,21 @@ pub fn update(model: &mut Model, msg: Msg) -> Command {
             if model.session.status == TestStatus::Waiting {
                 model.session.status = TestStatus::Running;
             }
-            {
+            let pushed = {
                 let word = &mut model.session.words[model.session.current_word];
                 if word.typed.len() < word.chars.len() {
                     word.typed.push(c);
+                    let idx = word.typed.len() - 1;
+                    let is_error = word.chars.get(idx) != Some(&c);
+                    Some(is_error)
+                } else {
+                    None
+                }
+            };
+            if let Some(is_error) = pushed {
+                model.session.total_chars_typed += 1;
+                if is_error {
+                    model.session.total_errors += 1;
                 }
             }
 
@@ -642,6 +653,33 @@ mod tests {
         } else {
             panic!("expected SaveStats");
         }
+    }
+
+    #[test]
+    fn char_increments_total_chars_typed() {
+        let mut model = model_with_words(&["hello"]);
+        update(&mut model, Msg::Char('h'));
+        assert_eq!(model.session.total_chars_typed, 1);
+        assert_eq!(model.session.total_errors, 0);
+    }
+
+    #[test]
+    fn char_wrong_increments_total_errors() {
+        let mut model = model_with_words(&["hello"]);
+        update(&mut model, Msg::Char('x')); // 'h' expected
+        assert_eq!(model.session.total_chars_typed, 1);
+        assert_eq!(model.session.total_errors, 1);
+    }
+
+    #[test]
+    fn errors_not_decremented_on_backspace() {
+        let mut model = model_with_words(&["hello"]);
+        update(&mut model, Msg::Char('x')); // wrong
+        update(&mut model, Msg::Backspace); // correct it
+        update(&mut model, Msg::Char('h')); // now correct
+        // total_chars_typed counts keystrokes (not current buffer length)
+        assert_eq!(model.session.total_chars_typed, 2);
+        assert_eq!(model.session.total_errors, 1); // error persists despite correction
     }
 }
 
