@@ -35,10 +35,8 @@ fn render_results(model: &Model, frame: &mut Frame) {
 
     let wpm_val = metrics::wpm(correct_words, elapsed);
     let raw_val = metrics::raw_wpm(committed_words, elapsed);
-    let acc_val = metrics::raw_accuracy(
-        model.session.total_chars_typed,
-        model.session.total_errors,
-    );
+    let acc_val =
+        metrics::raw_accuracy(model.session.total_chars_typed, model.session.total_errors);
 
     // Horizontally center the results block
     let outer = Layout::horizontal([
@@ -80,11 +78,8 @@ fn render_results(model: &Model, frame: &mut Frame) {
     );
 
     // Main content: left stats panel | chart
-    let content = Layout::horizontal([
-        Constraint::Length(14),
-        Constraint::Fill(1),
-    ])
-    .split(vertical[3]);
+    let content =
+        Layout::horizontal([Constraint::Length(14), Constraint::Fill(1)]).split(vertical[3]);
 
     // Left stats panel
     let left = Layout::vertical([
@@ -124,11 +119,8 @@ fn render_results(model: &Model, frame: &mut Frame) {
     render_chart(model, frame, content[1]);
 
     // Bottom stats: left (test type) | right (raw + time)
-    let bottom = Layout::horizontal([
-        Constraint::Length(14),
-        Constraint::Fill(1),
-    ])
-    .split(vertical[4]);
+    let bottom =
+        Layout::horizontal([Constraint::Length(14), Constraint::Fill(1)]).split(vertical[4]);
 
     // Bottom-left: test type info
     let bottom_left = Layout::vertical([
@@ -162,11 +154,8 @@ fn render_results(model: &Model, frame: &mut Frame) {
     );
 
     // Bottom-right: raw wpm | time
-    let bottom_right = Layout::horizontal([
-        Constraint::Fill(1),
-        Constraint::Fill(1),
-    ])
-    .split(bottom[1]);
+    let bottom_right =
+        Layout::horizontal([Constraint::Fill(1), Constraint::Fill(1)]).split(bottom[1]);
 
     let br_raw = Layout::vertical([
         Constraint::Length(1),
@@ -256,11 +245,8 @@ fn render_chart(model: &Model, frame: &mut Frame, area: Rect) {
 
     // Layout: y-labels strip | canvas area
     let y_label_width = 5u16;
-    let chart_h = Layout::horizontal([
-        Constraint::Length(y_label_width),
-        Constraint::Fill(1),
-    ])
-    .split(area);
+    let chart_h =
+        Layout::horizontal([Constraint::Length(y_label_width), Constraint::Fill(1)]).split(area);
 
     let canvas_v = Layout::vertical([
         Constraint::Fill(1),
@@ -278,10 +264,7 @@ fn render_chart(model: &Model, frame: &mut Frame, area: Rect) {
         let value = y_bound_max * (4 - i) as f64 / 4.0;
         let row = i * canvas_height.saturating_sub(1) / 4;
         if row < canvas_height {
-            y_lines[row] = Line::from(Span::styled(
-                format!("{:>4.0}", value),
-                Style::new().dim(),
-            ));
+            y_lines[row] = Line::from(Span::styled(format!("{:>4.0}", value), Style::new().dim()));
         }
     }
     frame.render_widget(Paragraph::new(y_lines), chart_h[0]);
@@ -289,7 +272,13 @@ fn render_chart(model: &Model, frame: &mut Frame, area: Rect) {
     // X-axis labels: second markers spaced to canvas width
     let canvas_width = canvas_area.width as usize;
     let n_secs = wpm_history.len();
-    let interval = if n_secs <= 15 { 1 } else if n_secs <= 60 { 5 } else { 10 };
+    let interval = if n_secs <= 15 {
+        1
+    } else if n_secs <= 60 {
+        5
+    } else {
+        10
+    };
     let mut x_buf = vec![b' '; canvas_width];
     for t in (interval..=n_secs).step_by(interval) {
         let col = (t * canvas_width) / n_secs;
@@ -322,7 +311,11 @@ fn render_chart(model: &Model, frame: &mut Frame, area: Rect) {
                 // i=0: flat segment from x=0 to x=1 fills the opening gap.
                 // i>0: connects wpm[i-1] at x=i to wpm[i] at x=i+1.
                 for i in 0..wpm_history.len() {
-                    let y1 = if i == 0 { wpm_history[0] } else { wpm_history[i - 1] };
+                    let y1 = if i == 0 {
+                        wpm_history[0]
+                    } else {
+                        wpm_history[i - 1]
+                    };
                     ctx.draw(&CanvasLine {
                         x1: i as f64,
                         y1,
@@ -334,15 +327,11 @@ fn render_chart(model: &Model, frame: &mut Frame, area: Rect) {
                 // Error markers (× in red, scaled into WPM range)
                 for (i, &delta) in error_deltas.iter().enumerate() {
                     if delta > 0 {
-                        let scaled_y =
-                            (delta as f64 / max_error_delta as f64) * max_wpm;
+                        let scaled_y = (delta as f64 / max_error_delta as f64) * max_wpm;
                         ctx.print(
                             (i + 1) as f64,
                             scaled_y,
-                            Line::from(Span::styled(
-                                "×",
-                                Style::new().fg(Color::Red),
-                            )),
+                            Line::from(Span::styled("×", Style::new().fg(Color::Red))),
                         );
                     }
                 }
