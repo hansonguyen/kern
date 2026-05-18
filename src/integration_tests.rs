@@ -178,3 +178,35 @@ fn time_mode_words_never_run_out() {
     assert_eq!(model.session.status, TestStatus::Running);
     assert_eq!(model.screen, Screen::Typing);
 }
+
+#[test]
+fn raw_accuracy_includes_corrected_errors() {
+    let mut rng = SmallRng::seed_from_u64(0);
+    let mut model = Model {
+        screen: Screen::Typing,
+        session: SessionState::new(vec![Word::new("hi"), Word::new("ok")]),
+        config: {
+            let mut c = Config::default();
+            c.test_mode = TestMode::Words;
+            c
+        },
+        history: Vec::new(),
+    };
+
+    // Type wrong char, backspace, then correct — error must persist
+    update(&mut model, Msg::Char('x')); // wrong ('h' expected)
+    update(&mut model, Msg::Backspace);
+    update(&mut model, Msg::Char('h')); // correct
+    let cmd = update(&mut model, Msg::Space); // commit "hi" (partially typed)
+    execute_command(&mut model, cmd, &mut rng);
+
+    update(&mut model, Msg::Char('o'));
+    let cmd = update(&mut model, Msg::Space); // commit "ok" → Done
+    execute_command(&mut model, cmd, &mut rng);
+
+    // total_chars_typed = 3 ('x', 'h', 'o'), total_errors = 1 ('x')
+    // accuracy = (3 - 1) / 3 * 100 ≈ 66.67%
+    assert_eq!(model.screen, Screen::Done);
+    let result = model.history.last().expect("stats saved");
+    assert!((result.accuracy - 66.67).abs() < 0.1, "accuracy was {}", result.accuracy);
+}
