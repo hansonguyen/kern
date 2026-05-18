@@ -99,6 +99,10 @@ pub struct SessionState {
     pub current_word: usize,
     pub status: TestStatus,
     pub elapsed: Duration,
+    pub total_chars_typed: u64,
+    pub total_errors: u64,
+    pub wpm_history: Vec<f64>,
+    pub error_history: Vec<u64>,
 }
 
 impl SessionState {
@@ -108,6 +112,10 @@ impl SessionState {
             current_word: 0,
             status: TestStatus::Waiting,
             elapsed: Duration::ZERO,
+            total_chars_typed: 0,
+            total_errors: 0,
+            wpm_history: Vec::new(),
+            error_history: Vec::new(),
         }
     }
 }
