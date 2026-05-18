@@ -35,13 +35,10 @@ fn render_results(model: &Model, frame: &mut Frame) {
 
     let wpm_val = metrics::wpm(correct_words, elapsed);
     let raw_val = metrics::raw_wpm(committed_words, elapsed);
-    let acc_val = if model.session.total_chars_typed == 0 {
-        0.0
-    } else {
-        (model.session.total_chars_typed - model.session.total_errors) as f64
-            / model.session.total_chars_typed as f64
-            * 100.0
-    };
+    let acc_val = metrics::raw_accuracy(
+        model.session.total_chars_typed,
+        model.session.total_errors,
+    );
 
     let vertical = Layout::vertical([
         Constraint::Length(1), // config/mode strip
@@ -141,6 +138,11 @@ fn render_chart(model: &Model, frame: &mut Frame, area: Rect) {
 
     // Per-second error deltas from cumulative history
     let error_history = &model.session.error_history;
+    debug_assert_eq!(
+        wpm_history.len(),
+        error_history.len(),
+        "wpm_history and error_history must be kept in sync"
+    );
     let error_deltas: Vec<u64> = error_history
         .iter()
         .enumerate()
@@ -153,12 +155,6 @@ fn render_chart(model: &Model, frame: &mut Frame, area: Rect) {
         })
         .collect();
     let max_error_delta = error_deltas.iter().cloned().max().unwrap_or(1).max(1);
-
-    debug_assert_eq!(
-        wpm_history.len(),
-        error_history.len(),
-        "wpm_history and error_history must be kept in sync"
-    );
 
     // Layout: y-labels strip | canvas area
     let y_label_width = 5u16;

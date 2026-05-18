@@ -12,13 +12,10 @@ fn build_stats_payload(model: &Model) -> StatsPayload {
         TestMode::Time => DURATION_OPTIONS[model.config.selected_duration_idx],
         TestMode::Words => model.session.elapsed.as_secs(),
     };
-    let accuracy = if model.session.total_chars_typed == 0 {
-        0.0
-    } else {
-        (model.session.total_chars_typed - model.session.total_errors) as f64
-            / model.session.total_chars_typed as f64
-            * 100.0
-    };
+    let accuracy = metrics::raw_accuracy(
+        model.session.total_chars_typed,
+        model.session.total_errors,
+    );
     StatsPayload {
         duration_secs,
         wpm: metrics::wpm(correct_words, model.session.elapsed),

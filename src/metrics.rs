@@ -16,6 +16,13 @@ pub fn raw_wpm(committed_words: usize, elapsed: Duration) -> f64 {
     committed_words as f64 / elapsed.as_secs_f64() * 60.0
 }
 
+pub fn raw_accuracy(total_chars_typed: u64, total_errors: u64) -> f64 {
+    if total_chars_typed == 0 {
+        return 0.0;
+    }
+    (total_chars_typed - total_errors) as f64 / total_chars_typed as f64 * 100.0
+}
+
 pub fn count_correct_words(words: &[Word]) -> usize {
     words
         .iter()
@@ -110,5 +117,4 @@ mod tests {
         ];
         assert_eq!(count_committed_words(&words), 2);
     }
-
 }
