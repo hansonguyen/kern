@@ -647,7 +647,9 @@ fn cursor_style(style: &CaretStyle, theme: &crate::theme::Theme) -> Style {
             .underline_color(theme.caret.to_ratatui_color())
             .add_modifier(Modifier::UNDERLINED),
         // Off and Default never reach here — build_word_lines handles them before calling this.
-        CaretStyle::Off | CaretStyle::Default => unreachable!("cursor_style called for non-span style"),
+        CaretStyle::Off | CaretStyle::Default => {
+            unreachable!("cursor_style called for non-span style")
+        }
     }
 }
 
@@ -943,7 +945,12 @@ mod tests {
         // Expected col = 3 (len("the")) + 1 (space separator) + 0 (nothing typed) = 4.
         let mut model = test_model(&["the", "quick"], 1, &["the"]);
         model.session.words[0].committed = true;
-        let area = ratatui::layout::Rect { x: 0, y: 0, width: 80, height: 3 };
+        let area = ratatui::layout::Rect {
+            x: 0,
+            y: 0,
+            width: 80,
+            height: 3,
+        };
         assert_eq!(cursor_screen_pos(&model, area), Some((4, 0)));
     }
 
@@ -953,7 +960,12 @@ mod tests {
         // Expected col = 3 + 1 (space) + 2 (typed) = 6.
         let mut model = test_model(&["the", "quick"], 1, &["the", "qu"]);
         model.session.words[0].committed = true;
-        let area = ratatui::layout::Rect { x: 0, y: 0, width: 80, height: 3 };
+        let area = ratatui::layout::Rect {
+            x: 0,
+            y: 0,
+            width: 80,
+            height: 3,
+        };
         assert_eq!(cursor_screen_pos(&model, area), Some((6, 0)));
     }
 

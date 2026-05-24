@@ -63,10 +63,7 @@ pub(crate) fn load_or_default_from(path: &Path) -> AppConfig {
 
 /// Deserializes a named top-level section from a raw TOML table, falling back
 /// to `T::default()` if the section is absent or fails to parse.
-fn load_section<T: serde::de::DeserializeOwned + Default>(
-    raw: &toml::Table,
-    key: &str,
-) -> T {
+fn load_section<T: serde::de::DeserializeOwned + Default>(raw: &toml::Table, key: &str) -> T {
     let Some(value) = raw.get(key) else {
         return T::default();
     };
