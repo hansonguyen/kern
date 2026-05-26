@@ -11,7 +11,7 @@ expression: render_with_duration(0)
                                                                                 
                                                                                 
                                                                                 
-ktype  [time] words   [15]  30  60   [←→] cycle  [tab] restart  [shift+tab] → wo
+ktype  [time] words   [15]  30  60  custom   [←→] cycle  [tab] restart  [shift+t
                                                                                 
 the quick brown                                                                 
                                                                                 

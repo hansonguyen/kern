@@ -53,18 +53,32 @@ pub enum CaretStyle {
     Underline,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum ModalKind {
+    CustomTime,
+    CustomWords,
+}
+
+#[derive(Debug, Clone)]
+pub struct ModalState {
+    pub kind: ModalKind,
+    pub input: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct Config {
     pub test_mode: TestMode,
     pub caret_style: CaretStyle,
     // time mode
     pub time_limit: Duration,
-    // invariant: always a valid index into DURATION_OPTIONS
+    // valid in 0..=DURATION_OPTIONS.len(); DURATION_OPTIONS.len() = custom slot
     pub selected_duration_idx: usize,
+    pub custom_time_secs: Option<u64>,
     // words mode
     pub word_count: usize,
-    // invariant: always a valid index into WORD_COUNT_OPTIONS
+    // valid in 0..=WORD_COUNT_OPTIONS.len(); WORD_COUNT_OPTIONS.len() = custom slot
     pub selected_word_count_idx: usize,
+    pub custom_word_count: Option<usize>,
     #[expect(dead_code)]
     pub punctuation: bool,
     #[expect(dead_code)]
@@ -72,13 +86,30 @@ pub struct Config {
 }
 
 impl Config {
-    /// Words to generate on test start. Time mode uses a fixed buffer that
-    /// grows dynamically; words mode uses the configured word count.
     pub fn initial_word_count(&self) -> usize {
         match self.test_mode {
             TestMode::Time => 50,
-            TestMode::Words => self.word_count,
+            TestMode::Words => {
+                if self.selected_word_count_idx == WORD_COUNT_OPTIONS.len() {
+                    match self.custom_word_count {
+                        None | Some(0) => 50,
+                        Some(n) => n,
+                    }
+                } else {
+                    self.word_count
+                }
+            }
         }
+    }
+
+    pub fn is_infinite_words(&self) -> bool {
+        self.selected_word_count_idx == WORD_COUNT_OPTIONS.len()
+            && self.custom_word_count == Some(0)
+    }
+
+    pub fn is_infinite_time(&self) -> bool {
+        self.selected_duration_idx == DURATION_OPTIONS.len()
+            && self.custom_time_secs == Some(0)
     }
 }
 
@@ -89,8 +120,10 @@ impl Default for Config {
             caret_style: CaretStyle::Block,
             time_limit: Duration::from_secs(15),
             selected_duration_idx: 0,
+            custom_time_secs: None,
             word_count: WORD_COUNT_OPTIONS[1], // 25
             selected_word_count_idx: 1,
+            custom_word_count: None,
             punctuation: false,
             numbers: false,
         }
@@ -132,6 +165,7 @@ pub struct Model {
     pub history: Vec<SessionResult>,
     pub pending_update: Option<String>,
     pub theme: Theme,
+    pub modal: Option<ModalState>,
 }
 
 impl Default for Model {
@@ -143,6 +177,7 @@ impl Default for Model {
             history: Vec::new(),
             pending_update: None,
             theme: Theme::default(),
+            modal: None,
         }
     }
 }
@@ -171,5 +206,36 @@ mod tests {
         assert_eq!(v, CaretStyle::Block);
         let v: CaretStyle = serde_json::from_str("\"underline\"").unwrap();
         assert_eq!(v, CaretStyle::Underline);
+    }
+
+    #[test]
+    fn custom_fields_default_to_none() {
+        let cfg = Config::default();
+        assert!(cfg.custom_time_secs.is_none());
+        assert!(cfg.custom_word_count.is_none());
+    }
+
+    #[test]
+    fn initial_word_count_infinite_words_returns_50() {
+        let mut cfg = Config::default();
+        cfg.test_mode = TestMode::Words;
+        cfg.selected_word_count_idx = WORD_COUNT_OPTIONS.len(); // custom slot
+        cfg.custom_word_count = Some(0); // infinite
+        assert_eq!(cfg.initial_word_count(), 50);
+    }
+
+    #[test]
+    fn initial_word_count_custom_words_returns_count() {
+        let mut cfg = Config::default();
+        cfg.test_mode = TestMode::Words;
+        cfg.selected_word_count_idx = WORD_COUNT_OPTIONS.len();
+        cfg.custom_word_count = Some(42);
+        assert_eq!(cfg.initial_word_count(), 42);
+    }
+
+    #[test]
+    fn modal_defaults_to_none() {
+        let model = Model::default();
+        assert!(model.modal.is_none());
     }
 }

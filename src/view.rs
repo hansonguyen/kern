@@ -1,4 +1,5 @@
 use crossterm::cursor::SetCursorStyle;
+use ratatui::widgets::{BorderType, Borders, Clear};
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Layout, Rect},
@@ -17,9 +18,11 @@ fn fg(color: &crate::theme::HexColor) -> Style {
 
 use crate::input::{CharState, char_state};
 use crate::metrics;
+use crate::model::ModalKind;
 use crate::model::{
     CaretStyle, DURATION_OPTIONS, Model, Screen, TestMode, TestStatus, WORD_COUNT_OPTIONS,
 };
+use crate::update::parse_custom_time;
 
 pub fn view(model: &Model, frame: &mut Frame) {
     frame.render_widget(
@@ -54,6 +57,10 @@ pub fn view(model: &Model, frame: &mut Frame) {
             .alignment(Alignment::Center),
             banner_area,
         );
+    }
+
+    if model.modal.is_some() {
+        render_modal(model, frame);
     }
 }
 
@@ -96,10 +103,12 @@ fn render_results(model: &Model, frame: &mut Frame) {
     match model.config.test_mode {
         TestMode::Time => result_header.extend(duration_strip_spans(
             model.config.selected_duration_idx,
+            model.config.custom_time_secs,
             &model.theme,
         )),
         TestMode::Words => result_header.extend(word_count_strip_spans(
             model.config.selected_word_count_idx,
+            model.config.custom_word_count,
             &model.theme,
         )),
     }
@@ -166,11 +175,30 @@ fn render_results(model: &Model, frame: &mut Frame) {
         bottom_left[0],
     );
     let mode_detail = match model.config.test_mode {
-        TestMode::Time => format!(
-            "time {}",
-            DURATION_OPTIONS[model.config.selected_duration_idx]
-        ),
-        TestMode::Words => format!("words {}", model.config.word_count),
+        TestMode::Time => {
+            let idx = model.config.selected_duration_idx;
+            if idx < DURATION_OPTIONS.len() {
+                format!("time {}", DURATION_OPTIONS[idx])
+            } else {
+                match model.config.custom_time_secs {
+                    Some(0) => "time \u{221e}".to_string(),
+                    Some(n) => format!("time {}s", n),
+                    None => "time custom".to_string(),
+                }
+            }
+        }
+        TestMode::Words => {
+            let idx = model.config.selected_word_count_idx;
+            if idx < WORD_COUNT_OPTIONS.len() {
+                format!("words {}", model.config.word_count)
+            } else {
+                match model.config.custom_word_count {
+                    Some(0) => "words \u{221e}".to_string(),
+                    Some(n) => format!("words {}", n),
+                    None => "words custom".to_string(),
+                }
+            }
+        }
     };
     frame.render_widget(
         Paragraph::new(Span::styled(
@@ -401,13 +429,31 @@ fn options_strip_spans(
     spans
 }
 
-fn duration_strip_spans(selected_idx: usize, theme: &crate::theme::Theme) -> Vec<Span<'static>> {
-    let labels = DURATION_OPTIONS.iter().map(|s| s.to_string()).collect();
+fn duration_strip_spans(
+    selected_idx: usize,
+    custom_time_secs: Option<u64>,
+    theme: &crate::theme::Theme,
+) -> Vec<Span<'static>> {
+    let mut labels: Vec<String> = DURATION_OPTIONS.iter().map(|s| s.to_string()).collect();
+    labels.push(match custom_time_secs {
+        None => "custom".to_string(),
+        Some(0) => "\u{221e}".to_string(),
+        Some(n) => n.to_string(),
+    });
     options_strip_spans(labels, selected_idx, theme)
 }
 
-fn word_count_strip_spans(selected_idx: usize, theme: &crate::theme::Theme) -> Vec<Span<'static>> {
-    let labels = WORD_COUNT_OPTIONS.iter().map(|s| s.to_string()).collect();
+fn word_count_strip_spans(
+    selected_idx: usize,
+    custom_word_count: Option<usize>,
+    theme: &crate::theme::Theme,
+) -> Vec<Span<'static>> {
+    let mut labels: Vec<String> = WORD_COUNT_OPTIONS.iter().map(|s| s.to_string()).collect();
+    labels.push(match custom_word_count {
+        None => "custom".to_string(),
+        Some(0) => "\u{221e}".to_string(),
+        Some(n) => n.to_string(),
+    });
     options_strip_spans(labels, selected_idx, theme)
 }
 
@@ -448,11 +494,14 @@ fn render_typing(model: &Model, frame: &mut Frame) {
 }
 
 fn render_typing_running(model: &Model, frame: &mut Frame, content: Rect) {
+    let is_infinite = model.config.is_infinite_time() || model.config.is_infinite_words();
+
     let vertical = Layout::vertical([
         Constraint::Fill(1),
         Constraint::Length(1), // counter (countdown or word progress)
         Constraint::Length(1), // spacer
         Constraint::Length(3), // word block
+        Constraint::Length(1), // hint (ctrl+enter) or empty
         Constraint::Fill(1),
     ])
     .split(content);
@@ -462,17 +511,27 @@ fn render_typing_running(model: &Model, frame: &mut Frame, content: Rect) {
 
     let counter_text = match model.config.test_mode {
         TestMode::Time => {
-            let remaining = model
-                .config
-                .time_limit
-                .saturating_sub(model.session.elapsed);
-            format!("{}", remaining.as_secs())
+            if model.config.is_infinite_time() {
+                format!("{}", model.session.elapsed.as_secs())
+            } else {
+                let remaining = model
+                    .config
+                    .time_limit
+                    .saturating_sub(model.session.elapsed);
+                format!("{}", remaining.as_secs())
+            }
         }
         TestMode::Words => {
-            // current_word is 0-indexed; shows completed word count (0 at start,
-            // increments to 1 only after the first word is committed and space pressed)
-            let total = model.session.words.len();
-            format!("{}/{}", model.session.current_word, total)
+            let is_infinite = model.config.selected_word_count_idx == WORD_COUNT_OPTIONS.len()
+                && model.config.custom_word_count == Some(0);
+            if is_infinite {
+                format!("{}", model.session.current_word)
+            } else {
+                // current_word is 0-indexed; shows completed word count (0 at start,
+                // increments to 1 only after the first word is committed and space pressed)
+                let total = model.session.words.len();
+                format!("{}/{}", model.session.current_word, total)
+            }
         }
     };
 
@@ -487,6 +546,14 @@ fn render_typing_running(model: &Model, frame: &mut Frame, content: Rect) {
     let word_lines = build_word_lines(model, words_area.width);
     frame.render_widget(Paragraph::new(word_lines), words_area);
     apply_terminal_cursor(&model.config.caret_style, model, frame, words_area);
+
+    if is_infinite {
+        frame.render_widget(
+            Paragraph::new(Span::styled("[ctrl+e] end", fg(&model.theme.sub)))
+                .alignment(Alignment::Center),
+            vertical[4],
+        );
+    }
 }
 
 fn render_typing_idle(model: &Model, frame: &mut Frame, content: Rect) {
@@ -514,10 +581,12 @@ fn render_typing_idle(model: &Model, frame: &mut Frame, content: Rect) {
     match model.config.test_mode {
         TestMode::Time => header_spans.extend(duration_strip_spans(
             model.config.selected_duration_idx,
+            model.config.custom_time_secs,
             &model.theme,
         )),
         TestMode::Words => header_spans.extend(word_count_strip_spans(
             model.config.selected_word_count_idx,
+            model.config.custom_word_count,
             &model.theme,
         )),
     }
@@ -708,6 +777,137 @@ fn cursor_screen_pos(model: &Model, words_area: Rect) -> Option<(u16, u16)> {
     col += word.typed.len() as u16;
 
     Some((words_area.x + col, words_area.y + visible_row))
+}
+
+fn plural(n: u64, unit: &str) -> String {
+    if n == 1 { format!("1 {}", unit) } else { format!("{} {}s", n, unit) }
+}
+
+fn format_duration(secs: u64) -> String {
+    let h = secs / 3600;
+    let m = (secs % 3600) / 60;
+    let s = secs % 60;
+    match (h, m, s) {
+        (0, 0, s) => plural(s, "second"),
+        (0, m, 0) => plural(m, "minute"),
+        (0, m, s) => format!("{} and {}", plural(m, "minute"), plural(s, "second")),
+        (h, 0, 0) => plural(h, "hour"),
+        (h, 0, s) => format!("{} and {}", plural(h, "hour"), plural(s, "second")),
+        (h, m, 0) => format!("{} and {}", plural(h, "hour"), plural(m, "minute")),
+        (h, m, s) => format!("{}, {} and {}", plural(h, "hour"), plural(m, "minute"), plural(s, "second")),
+    }
+}
+
+fn render_modal(model: &Model, frame: &mut Frame) {
+    let modal_state = model.modal.as_ref().expect("modal must be Some");
+    let area = frame.area();
+
+    let is_time = matches!(modal_state.kind, ModalKind::CustomTime);
+    let height: u16 = if is_time { 10 } else { 8 };
+    let width: u16 = 54;
+    let modal_area = Rect {
+        x: area.width.saturating_sub(width) / 2,
+        y: area.height.saturating_sub(height) / 2,
+        width: width.min(area.width),
+        height: height.min(area.height),
+    };
+
+    frame.render_widget(Clear, modal_area);
+    let outer_block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(fg(&model.theme.main))
+        .style(Style::new().bg(model.theme.bg.to_ratatui_color()));
+    let inner_area = outer_block.inner(modal_area);
+    frame.render_widget(outer_block, modal_area);
+
+    let constraints: Vec<Constraint> = if is_time {
+        vec![
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(3),
+            Constraint::Length(1),
+            Constraint::Length(1),
+        ]
+    } else {
+        vec![
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(3),
+            Constraint::Length(1),
+        ]
+    };
+    let rows = Layout::vertical(constraints).split(inner_area);
+
+    let title = if is_time {
+        "Test Duration"
+    } else {
+        "Custom word amount"
+    };
+    frame.render_widget(
+        Paragraph::new(Span::styled(title, fg(&model.theme.sub))).alignment(Alignment::Center),
+        rows[0],
+    );
+
+    let preview = if modal_state.input.is_empty() {
+        String::new()
+    } else if is_time {
+        let secs = parse_custom_time(&modal_state.input);
+        if secs == 0 {
+            "infinite".to_string()
+        } else {
+            format_duration(secs)
+        }
+    } else {
+        match modal_state.input.parse::<usize>() {
+            Ok(0) => "infinite".to_string(),
+            Ok(n) => format!("{} words", n),
+            Err(_) => String::new(),
+        }
+    };
+    frame.render_widget(
+        Paragraph::new(Span::styled(preview, fg(&model.theme.sub))).alignment(Alignment::Center),
+        rows[1],
+    );
+
+    let input_display = format!("{}_", modal_state.input);
+    frame.render_widget(
+        Paragraph::new(Span::styled(input_display, fg(&model.theme.text))).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(fg(&model.theme.main)),
+        ),
+        rows[2],
+    );
+
+    if is_time {
+        frame.render_widget(
+            Paragraph::new(Span::styled(
+                "use h for hours, m for minutes (e.g. 1h30m). 0 = infinite.",
+                fg(&model.theme.sub),
+            ))
+            .alignment(Alignment::Center),
+            rows[3],
+        );
+        frame.render_widget(
+            Paragraph::new(Span::styled(
+                "[enter] apply   [esc] cancel",
+                fg(&model.theme.sub),
+            ))
+            .alignment(Alignment::Center),
+            rows[4],
+        );
+    } else {
+        frame.render_widget(
+            Paragraph::new(Span::styled(
+                "[enter] apply   [esc] cancel",
+                fg(&model.theme.sub),
+            ))
+            .alignment(Alignment::Center),
+            rows[3],
+        );
+    }
 }
 
 #[cfg(test)]
@@ -1001,5 +1201,25 @@ mod tests {
         };
         let output = render_to_string(&model, 80, 24);
         insta::assert_snapshot!(output);
+    }
+
+    #[test]
+    fn modal_time_snapshot() {
+        use crate::model::{ModalKind, ModalState, TestStatus};
+        let mut model = test_model(&["the", "quick", "brown"], 0, &[]);
+        model.session.status = TestStatus::Waiting;
+        model.modal = Some(ModalState { kind: ModalKind::CustomTime, input: "1h30m".to_string() });
+        let output = render_to_string(&model, 80, 24);
+        insta::assert_snapshot!("modal_time", output);
+    }
+
+    #[test]
+    fn modal_words_snapshot() {
+        use crate::model::{ModalKind, ModalState, TestStatus};
+        let mut model = test_model(&["the", "quick", "brown"], 0, &[]);
+        model.session.status = TestStatus::Waiting;
+        model.modal = Some(ModalState { kind: ModalKind::CustomWords, input: "42".to_string() });
+        let output = render_to_string(&model, 80, 24);
+        insta::assert_snapshot!("modal_words", output);
     }
 }

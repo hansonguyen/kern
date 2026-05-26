@@ -2,7 +2,7 @@
 source: src/view.rs
 expression: output
 ---
-                           [time] words   [15]  30  60                          
+                       [time] words   [15]  30  60  custom                      
                                                                                 
 wpm             26                                                              
 24                                         ×         ⢀⡠⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤

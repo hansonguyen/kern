@@ -1,6 +1,5 @@
 ---
 source: src/view.rs
-assertion_line: 694
 expression: output
 ---
                                                                                 
@@ -12,7 +11,7 @@ expression: output
                                                                                 
                                                                                 
                                                                                 
-ktype  [time] words   [15]  30  60   [←→] cycle  [tab] restart  [shift+tab] → wo
+ktype  [time] words   [15]  30  60  custom   [←→] cycle  [tab] restart  [shift+t
                                                                                 
 the quick brown fox                                                             
                                                                                 

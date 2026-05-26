@@ -1,6 +1,6 @@
 use crate::model::Word;
 use crate::msg::Msg;
-use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CharState {
@@ -26,6 +26,12 @@ pub fn char_state(word: &Word, idx: usize) -> CharState {
 
 pub fn event_to_msg(event: Event) -> Option<Msg> {
     match event {
+        Event::Key(KeyEvent {
+            kind: KeyEventKind::Press,
+            code: KeyCode::Char('e'),
+            modifiers,
+            ..
+        }) if modifiers.contains(KeyModifiers::CONTROL) => Some(Msg::EndTest),
         Event::Key(KeyEvent {
             kind: KeyEventKind::Press,
             code,

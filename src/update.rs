@@ -2,14 +2,49 @@ use std::time::Duration;
 
 use crate::commands::{Command, StatsPayload};
 use crate::metrics;
-use crate::model::{DURATION_OPTIONS, Model, Screen, TestMode, TestStatus, WORD_COUNT_OPTIONS};
+use crate::model::{
+    DURATION_OPTIONS, ModalKind, ModalState, Model, Screen, TestMode, TestStatus,
+    WORD_COUNT_OPTIONS,
+};
 use crate::msg::Msg;
+
+pub(crate) fn parse_custom_time(input: &str) -> u64 {
+    let mut total: u64 = 0;
+    let mut num_buf = String::new();
+
+    for ch in input.chars() {
+        if ch.is_ascii_digit() {
+            num_buf.push(ch);
+        } else if !num_buf.is_empty() {
+            let n: u64 = num_buf.parse().unwrap_or(0);
+            num_buf.clear();
+            total = total.saturating_add(match ch {
+                'h' => n.saturating_mul(3600),
+                'm' => n.saturating_mul(60),
+                _ => n,
+            });
+        }
+        // non-digit with empty num_buf: skip
+    }
+
+    if !num_buf.is_empty() {
+        total = total.saturating_add(num_buf.parse().unwrap_or(0));
+    }
+
+    total
+}
 
 fn build_stats_payload(model: &Model) -> StatsPayload {
     let correct_words = metrics::count_correct_words(&model.session.words);
     let committed_words = metrics::count_committed_words(&model.session.words);
     let duration_secs = match model.config.test_mode {
-        TestMode::Time => DURATION_OPTIONS[model.config.selected_duration_idx],
+        TestMode::Time => {
+            if model.config.selected_duration_idx < DURATION_OPTIONS.len() {
+                DURATION_OPTIONS[model.config.selected_duration_idx]
+            } else {
+                model.session.elapsed.as_secs()
+            }
+        }
         TestMode::Words => model.session.elapsed.as_secs(),
     };
     let accuracy =
@@ -22,10 +57,58 @@ fn build_stats_payload(model: &Model) -> StatsPayload {
     }
 }
 
+fn update_modal(model: &mut Model, msg: Msg) -> Command {
+    match msg {
+        Msg::Char(c) => {
+            model.modal.as_mut().expect("modal must be Some").input.push(c);
+            Command::None
+        }
+        Msg::Backspace => {
+            model.modal.as_mut().expect("modal must be Some").input.pop();
+            Command::None
+        }
+        Msg::Space => {
+            let crate::model::ModalState { kind, input } = model.modal.take().unwrap();
+            match kind {
+                ModalKind::CustomTime => {
+                    let secs = parse_custom_time(&input);
+                    model.config.custom_time_secs = Some(secs);
+                    if secs > 0 {
+                        model.config.time_limit = Duration::from_secs(secs);
+                    }
+                }
+                ModalKind::CustomWords => {
+                    let count: usize = input.parse().unwrap_or(0);
+                    model.config.custom_word_count = Some(count);
+                }
+            }
+            Command::GenerateWords {
+                count: model.config.initial_word_count(),
+            }
+        }
+        Msg::Esc => {
+            model.modal = None;
+            Command::None
+        }
+        _ => Command::None,
+    }
+}
+
 pub fn update(model: &mut Model, msg: Msg) -> Command {
+    if model.modal.is_some() {
+        return update_modal(model, msg);
+    }
     match msg {
         Msg::Esc => {
             model.screen = Screen::Quitting;
+        }
+
+        Msg::EndTest => {
+            if model.session.status == TestStatus::Running {
+                model.session.status = TestStatus::Done;
+                model.screen = Screen::Done;
+                return Command::SaveStats(build_stats_payload(model));
+            }
         }
 
         Msg::Tab => {
@@ -65,19 +148,16 @@ pub fn update(model: &mut Model, msg: Msg) -> Command {
                 == model.session.words[model.session.current_word].chars.len();
 
             if is_last && word_full {
-                match model.config.test_mode {
-                    TestMode::Words => {
-                        model.session.words[model.session.current_word].committed = true;
-                        model.session.status = TestStatus::Done;
-                        model.screen = Screen::Done;
-                        return Command::SaveStats(build_stats_payload(model));
-                    }
-                    TestMode::Time => {
-                        // Commit but defer advance — execute_command will advance
-                        // after appending so current_word is never out of bounds.
-                        model.session.words[model.session.current_word].committed = true;
-                        return Command::AppendWords { count: 1 };
-                    }
+                let ends_test = matches!(model.config.test_mode, TestMode::Words)
+                    && !model.config.is_infinite_words();
+
+                model.session.words[model.session.current_word].committed = true;
+                if ends_test {
+                    model.session.status = TestStatus::Done;
+                    model.screen = Screen::Done;
+                    return Command::SaveStats(build_stats_payload(model));
+                } else {
+                    return Command::AppendWords { count: 1 };
                 }
             }
         }
@@ -96,6 +176,38 @@ pub fn update(model: &mut Model, msg: Msg) -> Command {
         }
 
         Msg::Space => {
+            // Open custom modal when on custom slot and idle
+            if model.session.status == TestStatus::Waiting {
+                let on_custom = match model.config.test_mode {
+                    TestMode::Time => model.config.selected_duration_idx == DURATION_OPTIONS.len(),
+                    TestMode::Words => {
+                        model.config.selected_word_count_idx == WORD_COUNT_OPTIONS.len()
+                    }
+                };
+                if on_custom {
+                    let kind = match model.config.test_mode {
+                        TestMode::Time => ModalKind::CustomTime,
+                        TestMode::Words => ModalKind::CustomWords,
+                    };
+                    let prefill = match model.config.test_mode {
+                        TestMode::Time => model
+                            .config
+                            .custom_time_secs
+                            .map(|s| s.to_string())
+                            .unwrap_or_default(),
+                        TestMode::Words => model
+                            .config
+                            .custom_word_count
+                            .map(|c| c.to_string())
+                            .unwrap_or_default(),
+                    };
+                    model.modal = Some(ModalState {
+                        kind,
+                        input: prefill,
+                    });
+                    return Command::None;
+                }
+            }
             if model.session.words.is_empty()
                 || model.session.words[model.session.current_word]
                     .typed
@@ -108,20 +220,22 @@ pub fn update(model: &mut Model, msg: Msg) -> Command {
             model.session.words[model.session.current_word].committed = true;
 
             if is_last {
-                match model.config.test_mode {
-                    TestMode::Words => {
-                        model.session.status = TestStatus::Done;
-                        model.screen = Screen::Done;
-                        return Command::SaveStats(build_stats_payload(model));
-                    }
-                    TestMode::Time => {
-                        // Defer advance — execute_command advances after appending.
-                        return Command::AppendWords { count: 1 };
-                    }
+                let ends_test = matches!(model.config.test_mode, TestMode::Words)
+                    && !model.config.is_infinite_words();
+
+                if ends_test {
+                    model.session.status = TestStatus::Done;
+                    model.screen = Screen::Done;
+                    return Command::SaveStats(build_stats_payload(model));
+                } else {
+                    return Command::AppendWords { count: 1 };
                 }
             } else {
                 model.session.current_word += 1;
                 if matches!(model.config.test_mode, TestMode::Time) {
+                    return Command::AppendWords { count: 1 };
+                }
+                if model.config.is_infinite_words() {
                     return Command::AppendWords { count: 1 };
                 }
             }
@@ -139,8 +253,9 @@ pub fn update(model: &mut Model, msg: Msg) -> Command {
                 model.session.wpm_history.push(wpm);
                 model.session.error_history.push(model.session.total_errors);
             }
-            // Only expire in time mode; words mode tracks elapsed but has no deadline.
+            // Only expire in time mode with a finite limit.
             if matches!(model.config.test_mode, TestMode::Time)
+                && !model.config.is_infinite_time()
                 && elapsed >= model.config.time_limit
             {
                 model.session.status = TestStatus::Done;
@@ -169,15 +284,27 @@ pub fn update(model: &mut Model, msg: Msg) -> Command {
             }
             match model.config.test_mode {
                 TestMode::Time => {
-                    let next = (model.config.selected_duration_idx + 1) % DURATION_OPTIONS.len();
+                    let n = DURATION_OPTIONS.len() + 1;
+                    let next = (model.config.selected_duration_idx + 1) % n;
                     model.config.selected_duration_idx = next;
-                    model.config.time_limit = Duration::from_secs(DURATION_OPTIONS[next]);
+                    if next < DURATION_OPTIONS.len() {
+                        model.config.time_limit = Duration::from_secs(DURATION_OPTIONS[next]);
+                    } else if let Some(secs) = model.config.custom_time_secs {
+                        if secs > 0 {
+                            model.config.time_limit = Duration::from_secs(secs);
+                        }
+                        // secs == 0 (infinite): time_limit irrelevant, leave unchanged
+                    }
+                    // else: no custom value yet, leave time_limit unchanged
                 }
                 TestMode::Words => {
-                    let next =
-                        (model.config.selected_word_count_idx + 1) % WORD_COUNT_OPTIONS.len();
+                    let n = WORD_COUNT_OPTIONS.len() + 1;
+                    let next = (model.config.selected_word_count_idx + 1) % n;
                     model.config.selected_word_count_idx = next;
-                    model.config.word_count = WORD_COUNT_OPTIONS[next];
+                    if next < WORD_COUNT_OPTIONS.len() {
+                        model.config.word_count = WORD_COUNT_OPTIONS[next];
+                    }
+                    // custom slot: word_count irrelevant; initial_word_count() reads custom_word_count
                 }
             }
             model.screen = Screen::Typing;
@@ -192,17 +319,24 @@ pub fn update(model: &mut Model, msg: Msg) -> Command {
             }
             match model.config.test_mode {
                 TestMode::Time => {
-                    let prev = (model.config.selected_duration_idx + DURATION_OPTIONS.len() - 1)
-                        % DURATION_OPTIONS.len();
+                    let n = DURATION_OPTIONS.len() + 1;
+                    let prev = (model.config.selected_duration_idx + n - 1) % n;
                     model.config.selected_duration_idx = prev;
-                    model.config.time_limit = Duration::from_secs(DURATION_OPTIONS[prev]);
+                    if prev < DURATION_OPTIONS.len() {
+                        model.config.time_limit = Duration::from_secs(DURATION_OPTIONS[prev]);
+                    } else if let Some(secs) = model.config.custom_time_secs {
+                        if secs > 0 {
+                            model.config.time_limit = Duration::from_secs(secs);
+                        }
+                    }
                 }
                 TestMode::Words => {
-                    let prev = (model.config.selected_word_count_idx + WORD_COUNT_OPTIONS.len()
-                        - 1)
-                        % WORD_COUNT_OPTIONS.len();
+                    let n = WORD_COUNT_OPTIONS.len() + 1;
+                    let prev = (model.config.selected_word_count_idx + n - 1) % n;
                     model.config.selected_word_count_idx = prev;
-                    model.config.word_count = WORD_COUNT_OPTIONS[prev];
+                    if prev < WORD_COUNT_OPTIONS.len() {
+                        model.config.word_count = WORD_COUNT_OPTIONS[prev];
+                    }
                 }
             }
             model.screen = Screen::Typing;
@@ -227,7 +361,9 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
-    use crate::model::{Screen, SessionState, TestMode, TestStatus, WORD_COUNT_OPTIONS, Word};
+    use crate::model::{
+        DURATION_OPTIONS, Screen, SessionState, TestMode, TestStatus, WORD_COUNT_OPTIONS, Word,
+    };
 
     fn model_with_words(words: &[&str]) -> Model {
         Model {
@@ -241,6 +377,37 @@ mod tests {
         let mut model = model_with_words(&["hello", "world"]);
         update(&mut model, Msg::Esc);
         assert_eq!(model.screen, Screen::Quitting);
+    }
+
+    #[test]
+    fn end_test_while_running_goes_to_done() {
+        let mut model = model_with_words(&["hello", "world"]);
+        model.session.status = TestStatus::Running;
+        update(&mut model, Msg::EndTest);
+        assert_eq!(model.screen, Screen::Done);
+        assert_eq!(model.session.status, TestStatus::Done);
+    }
+
+    #[test]
+    fn end_test_while_waiting_is_ignored() {
+        let mut model = model_with_words(&["hello", "world"]);
+        assert_eq!(model.session.status, TestStatus::Waiting);
+        update(&mut model, Msg::EndTest);
+        assert_eq!(model.screen, Screen::Typing);
+        assert_eq!(model.session.status, TestStatus::Waiting);
+    }
+
+    #[test]
+    fn end_test_while_modal_open_is_swallowed() {
+        use crate::model::{ModalKind, ModalState};
+        let mut model = model_with_words(&["hello", "world"]);
+        model.session.status = TestStatus::Running;
+        model.modal = Some(ModalState { kind: ModalKind::CustomTime, input: String::new() });
+        update(&mut model, Msg::EndTest);
+        // modal stays open, test still running
+        assert!(model.modal.is_some());
+        assert_eq!(model.session.status, TestStatus::Running);
+        assert_eq!(model.screen, Screen::Typing);
     }
 
     #[test]
@@ -465,7 +632,10 @@ mod tests {
         let mut model = model_with_words(&["hello"]);
         update(&mut model, Msg::Right); // 0 → 1
         update(&mut model, Msg::Right); // 1 → 2
-        update(&mut model, Msg::Right); // 2 → 0
+        update(&mut model, Msg::Right); // 2 → custom slot (3)
+        assert_eq!(model.config.selected_duration_idx, DURATION_OPTIONS.len());
+        // wrap back to 0
+        update(&mut model, Msg::Right);
         assert_eq!(model.config.selected_duration_idx, 0);
         assert_eq!(model.config.time_limit, Duration::from_secs(15));
     }
@@ -473,9 +643,8 @@ mod tests {
     #[test]
     fn left_cycles_duration_backward() {
         let mut model = model_with_words(&["hello"]);
-        update(&mut model, Msg::Left); // 0 → 2 (wraps)
-        assert_eq!(model.config.selected_duration_idx, 2);
-        assert_eq!(model.config.time_limit, Duration::from_secs(60));
+        update(&mut model, Msg::Left); // 0 → custom slot (wraps to DURATION_OPTIONS.len())
+        assert_eq!(model.config.selected_duration_idx, DURATION_OPTIONS.len());
     }
 
     #[test]
@@ -730,6 +899,255 @@ mod tests {
         model.session.total_errors = 3; // set directly to test recording
         update(&mut model, Msg::Tick(Duration::from_secs(1)));
         assert_eq!(model.session.error_history, vec![3]);
+    }
+
+    #[test]
+    fn parse_empty_string_returns_zero() {
+        assert_eq!(parse_custom_time(""), 0);
+    }
+
+    #[test]
+    fn parse_plain_seconds() {
+        assert_eq!(parse_custom_time("30"), 30);
+        assert_eq!(parse_custom_time("0"), 0);
+        assert_eq!(parse_custom_time("90"), 90);
+    }
+
+    #[test]
+    fn parse_minutes_suffix() {
+        assert_eq!(parse_custom_time("1m"), 60);
+        assert_eq!(parse_custom_time("2m"), 120);
+    }
+
+    #[test]
+    fn parse_hours_suffix() {
+        assert_eq!(parse_custom_time("1h"), 3600);
+    }
+
+    #[test]
+    fn parse_hours_and_minutes() {
+        assert_eq!(parse_custom_time("1h30m"), 5400);
+    }
+
+    #[test]
+    fn parse_monkeytype_example() {
+        assert_eq!(parse_custom_time("10h5dm14asd3asdas2d"), 36024);
+    }
+
+    #[test]
+    fn parse_trailing_number_is_seconds() {
+        assert_eq!(parse_custom_time("1m30"), 90);
+    }
+
+    #[test]
+    fn right_from_custom_slot_wraps_to_zero() {
+        let mut model = model_with_words(&["hello"]);
+        model.config.selected_duration_idx = DURATION_OPTIONS.len(); // custom slot
+        update(&mut model, Msg::Right);
+        assert_eq!(model.config.selected_duration_idx, 0);
+        assert_eq!(
+            model.config.time_limit,
+            Duration::from_secs(DURATION_OPTIONS[0])
+        );
+    }
+
+    #[test]
+    fn right_to_custom_slot_applies_stored_value() {
+        let mut model = model_with_words(&["hello"]);
+        model.config.selected_duration_idx = DURATION_OPTIONS.len() - 1; // last preset
+        model.config.custom_time_secs = Some(45);
+        update(&mut model, Msg::Right); // → custom slot
+        assert_eq!(model.config.selected_duration_idx, DURATION_OPTIONS.len());
+        assert_eq!(model.config.time_limit, Duration::from_secs(45));
+    }
+
+    #[test]
+    fn right_to_custom_slot_no_stored_value_keeps_time_limit() {
+        let mut model = model_with_words(&["hello"]);
+        model.config.selected_duration_idx = DURATION_OPTIONS.len() - 1;
+        let limit_before = model.config.time_limit;
+        update(&mut model, Msg::Right); // → custom slot, no value stored
+        assert_eq!(model.config.selected_duration_idx, DURATION_OPTIONS.len());
+        assert_eq!(model.config.time_limit, limit_before); // unchanged
+    }
+
+    #[test]
+    fn right_cycles_word_count_to_custom_slot() {
+        let mut model = model_with_words(&["hello"]);
+        model.config.test_mode = TestMode::Words;
+        model.config.selected_word_count_idx = WORD_COUNT_OPTIONS.len() - 1;
+        update(&mut model, Msg::Right);
+        assert_eq!(
+            model.config.selected_word_count_idx,
+            WORD_COUNT_OPTIONS.len()
+        );
+    }
+
+    #[test]
+    fn right_from_custom_word_slot_wraps_to_zero() {
+        let mut model = model_with_words(&["hello"]);
+        model.config.test_mode = TestMode::Words;
+        model.config.selected_word_count_idx = WORD_COUNT_OPTIONS.len();
+        update(&mut model, Msg::Right);
+        assert_eq!(model.config.selected_word_count_idx, 0);
+    }
+
+    #[test]
+    fn space_on_custom_time_slot_while_waiting_opens_modal() {
+        let mut model = model_with_words(&["hello"]);
+        model.config.selected_duration_idx = DURATION_OPTIONS.len();
+        assert_eq!(model.session.status, TestStatus::Waiting);
+        update(&mut model, Msg::Space);
+        assert!(model.modal.is_some());
+    }
+
+    #[test]
+    fn space_on_custom_words_slot_while_waiting_opens_modal() {
+        let mut model = model_with_words(&["hello"]);
+        model.config.test_mode = TestMode::Words;
+        model.config.selected_word_count_idx = WORD_COUNT_OPTIONS.len();
+        update(&mut model, Msg::Space);
+        assert!(model.modal.is_some());
+    }
+
+    #[test]
+    fn modal_char_appends_to_input() {
+        let mut model = model_with_words(&["hello"]);
+        model.modal = Some(crate::model::ModalState {
+            kind: crate::model::ModalKind::CustomTime,
+            input: String::new(),
+        });
+        update(&mut model, Msg::Char('3'));
+        update(&mut model, Msg::Char('0'));
+        assert_eq!(model.modal.as_ref().unwrap().input, "30");
+    }
+
+    #[test]
+    fn modal_backspace_removes_char() {
+        let mut model = model_with_words(&["hello"]);
+        model.modal = Some(crate::model::ModalState {
+            kind: crate::model::ModalKind::CustomTime,
+            input: "30".to_string(),
+        });
+        update(&mut model, Msg::Backspace);
+        assert_eq!(model.modal.as_ref().unwrap().input, "3");
+    }
+
+    #[test]
+    fn modal_esc_closes_without_applying() {
+        let mut model = model_with_words(&["hello"]);
+        model.config.custom_time_secs = None;
+        model.modal = Some(crate::model::ModalState {
+            kind: crate::model::ModalKind::CustomTime,
+            input: "45".to_string(),
+        });
+        update(&mut model, Msg::Esc);
+        assert!(model.modal.is_none());
+        assert!(model.config.custom_time_secs.is_none()); // unchanged
+    }
+
+    #[test]
+    fn modal_space_applies_custom_time_and_closes() {
+        let mut model = model_with_words(&["hello"]);
+        model.config.selected_duration_idx = DURATION_OPTIONS.len();
+        model.modal = Some(crate::model::ModalState {
+            kind: crate::model::ModalKind::CustomTime,
+            input: "45".to_string(),
+        });
+        update(&mut model, Msg::Space);
+        assert!(model.modal.is_none());
+        assert_eq!(model.config.custom_time_secs, Some(45));
+        assert_eq!(model.config.time_limit, Duration::from_secs(45));
+    }
+
+    #[test]
+    fn modal_space_applies_custom_words_and_closes() {
+        let mut model = model_with_words(&["hello"]);
+        model.config.test_mode = TestMode::Words;
+        model.config.selected_word_count_idx = WORD_COUNT_OPTIONS.len();
+        model.modal = Some(crate::model::ModalState {
+            kind: crate::model::ModalKind::CustomWords,
+            input: "42".to_string(),
+        });
+        update(&mut model, Msg::Space);
+        assert!(model.modal.is_none());
+        assert_eq!(model.config.custom_word_count, Some(42));
+    }
+
+    #[test]
+    fn modal_space_zero_input_sets_infinite_time() {
+        let mut model = model_with_words(&["hello"]);
+        model.config.selected_duration_idx = DURATION_OPTIONS.len();
+        model.modal = Some(crate::model::ModalState {
+            kind: crate::model::ModalKind::CustomTime,
+            input: "0".to_string(),
+        });
+        update(&mut model, Msg::Space);
+        assert_eq!(model.config.custom_time_secs, Some(0));
+    }
+
+    #[test]
+    fn modal_space_zero_input_sets_infinite_words() {
+        let mut model = model_with_words(&["hello"]);
+        model.config.test_mode = TestMode::Words;
+        model.config.selected_word_count_idx = WORD_COUNT_OPTIONS.len();
+        model.modal = Some(crate::model::ModalState {
+            kind: crate::model::ModalKind::CustomWords,
+            input: "0".to_string(),
+        });
+        update(&mut model, Msg::Space);
+        assert_eq!(model.config.custom_word_count, Some(0));
+    }
+
+    #[test]
+    fn infinite_time_tick_does_not_expire() {
+        let mut model = model_with_words(&["hello"]);
+        model.config.selected_duration_idx = DURATION_OPTIONS.len();
+        model.config.custom_time_secs = Some(0);
+        update(&mut model, Msg::Char('h')); // → Running
+        update(&mut model, Msg::Tick(Duration::from_secs(9999)));
+        assert_eq!(model.session.status, TestStatus::Running);
+        assert_eq!(model.screen, Screen::Typing);
+    }
+
+    #[test]
+    fn infinite_words_space_on_last_word_appends_not_ends() {
+        let mut model = model_with_words(&["hi"]);
+        model.config.test_mode = TestMode::Words;
+        model.config.selected_word_count_idx = WORD_COUNT_OPTIONS.len();
+        model.config.custom_word_count = Some(0);
+        update(&mut model, Msg::Char('h'));
+        let cmd = update(&mut model, Msg::Space);
+        assert!(matches!(cmd, Command::AppendWords { count: 1 }));
+        assert_eq!(model.session.status, TestStatus::Running);
+    }
+
+    #[test]
+    fn infinite_words_last_char_appends_not_ends() {
+        let mut model = model_with_words(&["hi"]);
+        model.config.test_mode = TestMode::Words;
+        model.config.selected_word_count_idx = WORD_COUNT_OPTIONS.len();
+        model.config.custom_word_count = Some(0);
+        update(&mut model, Msg::Char('h'));
+        let cmd = update(&mut model, Msg::Char('i'));
+        assert!(matches!(cmd, Command::AppendWords { count: 1 }));
+        assert_eq!(model.session.status, TestStatus::Running);
+    }
+
+    #[test]
+    fn build_stats_uses_elapsed_for_custom_time_slot() {
+        let mut model = model_with_words(&["hi"]);
+        model.config.selected_duration_idx = DURATION_OPTIONS.len();
+        model.config.custom_time_secs = Some(45);
+        model.config.time_limit = Duration::from_secs(45);
+        update(&mut model, Msg::Char('h'));
+        model.session.elapsed = Duration::from_secs(20);
+        let cmd = update(&mut model, Msg::Tick(Duration::from_secs(45)));
+        if let Command::SaveStats(payload) = cmd {
+            assert_eq!(payload.duration_secs, 45);
+        } else {
+            panic!("expected SaveStats");
+        }
     }
 }
 
