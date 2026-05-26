@@ -780,7 +780,11 @@ fn cursor_screen_pos(model: &Model, words_area: Rect) -> Option<(u16, u16)> {
 }
 
 fn plural(n: u64, unit: &str) -> String {
-    if n == 1 { format!("1 {}", unit) } else { format!("{} {}s", n, unit) }
+    if n == 1 {
+        format!("1 {}", unit)
+    } else {
+        format!("{} {}s", n, unit)
+    }
 }
 
 fn format_duration(secs: u64) -> String {
@@ -794,7 +798,12 @@ fn format_duration(secs: u64) -> String {
         (h, 0, 0) => plural(h, "hour"),
         (h, 0, s) => format!("{} and {}", plural(h, "hour"), plural(s, "second")),
         (h, m, 0) => format!("{} and {}", plural(h, "hour"), plural(m, "minute")),
-        (h, m, s) => format!("{}, {} and {}", plural(h, "hour"), plural(m, "minute"), plural(s, "second")),
+        (h, m, s) => format!(
+            "{}, {} and {}",
+            plural(h, "hour"),
+            plural(m, "minute"),
+            plural(s, "second")
+        ),
     }
 }
 
@@ -1208,7 +1217,10 @@ mod tests {
         use crate::model::{ModalKind, ModalState, TestStatus};
         let mut model = test_model(&["the", "quick", "brown"], 0, &[]);
         model.session.status = TestStatus::Waiting;
-        model.modal = Some(ModalState { kind: ModalKind::CustomTime, input: "1h30m".to_string() });
+        model.modal = Some(ModalState {
+            kind: ModalKind::CustomTime,
+            input: "1h30m".to_string(),
+        });
         let output = render_to_string(&model, 80, 24);
         insta::assert_snapshot!("modal_time", output);
     }
@@ -1218,7 +1230,10 @@ mod tests {
         use crate::model::{ModalKind, ModalState, TestStatus};
         let mut model = test_model(&["the", "quick", "brown"], 0, &[]);
         model.session.status = TestStatus::Waiting;
-        model.modal = Some(ModalState { kind: ModalKind::CustomWords, input: "42".to_string() });
+        model.modal = Some(ModalState {
+            kind: ModalKind::CustomWords,
+            input: "42".to_string(),
+        });
         let output = render_to_string(&model, 80, 24);
         insta::assert_snapshot!("modal_words", output);
     }

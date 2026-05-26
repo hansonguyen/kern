@@ -108,8 +108,7 @@ impl Config {
     }
 
     pub fn is_infinite_time(&self) -> bool {
-        self.selected_duration_idx == DURATION_OPTIONS.len()
-            && self.custom_time_secs == Some(0)
+        self.selected_duration_idx == DURATION_OPTIONS.len() && self.custom_time_secs == Some(0)
     }
 }
 

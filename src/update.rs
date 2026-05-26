@@ -60,11 +60,21 @@ fn build_stats_payload(model: &Model) -> StatsPayload {
 fn update_modal(model: &mut Model, msg: Msg) -> Command {
     match msg {
         Msg::Char(c) => {
-            model.modal.as_mut().expect("modal must be Some").input.push(c);
+            model
+                .modal
+                .as_mut()
+                .expect("modal must be Some")
+                .input
+                .push(c);
             Command::None
         }
         Msg::Backspace => {
-            model.modal.as_mut().expect("modal must be Some").input.pop();
+            model
+                .modal
+                .as_mut()
+                .expect("modal must be Some")
+                .input
+                .pop();
             Command::None
         }
         Msg::Space => {
@@ -402,7 +412,10 @@ mod tests {
         use crate::model::{ModalKind, ModalState};
         let mut model = model_with_words(&["hello", "world"]);
         model.session.status = TestStatus::Running;
-        model.modal = Some(ModalState { kind: ModalKind::CustomTime, input: String::new() });
+        model.modal = Some(ModalState {
+            kind: ModalKind::CustomTime,
+            input: String::new(),
+        });
         update(&mut model, Msg::EndTest);
         // modal stays open, test still running
         assert!(model.modal.is_some());
