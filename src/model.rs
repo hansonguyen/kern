@@ -79,9 +79,7 @@ pub struct Config {
     // valid in 0..=WORD_COUNT_OPTIONS.len(); WORD_COUNT_OPTIONS.len() = custom slot
     pub selected_word_count_idx: usize,
     pub custom_word_count: Option<usize>,
-    #[expect(dead_code)]
     pub punctuation: bool,
-    #[expect(dead_code)]
     pub numbers: bool,
 }
 
@@ -109,6 +107,15 @@ impl Config {
 
     pub fn is_infinite_time(&self) -> bool {
         self.selected_duration_idx == DURATION_OPTIONS.len() && self.custom_time_secs == Some(0)
+    }
+
+    pub fn word_bank_label(&self) -> &'static str {
+        match (self.punctuation, self.numbers) {
+            (true, true) => "english + punctuation + numbers",
+            (true, false) => "english + punctuation",
+            (false, true) => "english + numbers",
+            (false, false) => "english",
+        }
     }
 }
 

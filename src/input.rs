@@ -38,6 +38,8 @@ pub fn event_to_msg(event: Event) -> Option<Msg> {
             ..
         }) => match code {
             KeyCode::Char(' ') | KeyCode::Enter => Some(Msg::Space),
+            KeyCode::Char('@') => Some(Msg::TogglePunctuation),
+            KeyCode::Char('#') => Some(Msg::ToggleNumbers),
             KeyCode::Char(c) => Some(Msg::Char(c)),
             KeyCode::Backspace => Some(Msg::Backspace),
             KeyCode::Tab => Some(Msg::Tab),
@@ -165,5 +167,21 @@ mod tests {
     #[test]
     fn right_maps_to_right_msg() {
         assert_eq!(event_to_msg(key_press(KeyCode::Right)), Some(Msg::Right));
+    }
+
+    #[test]
+    fn at_maps_to_toggle_punctuation() {
+        assert_eq!(
+            event_to_msg(key_press(KeyCode::Char('@'))),
+            Some(Msg::TogglePunctuation)
+        );
+    }
+
+    #[test]
+    fn hash_maps_to_toggle_numbers() {
+        assert_eq!(
+            event_to_msg(key_press(KeyCode::Char('#'))),
+            Some(Msg::ToggleNumbers)
+        );
     }
 }

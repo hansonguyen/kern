@@ -10,7 +10,7 @@ expression: render_with_duration(1)
                                                                                 
                                                                                 
                                                                                 
-ktype  [time] words   15  [30]  60  custom   [←→] cycle  [tab] restart  [shift+t
+ktype  @ punctuation  # numbers   [time] words   15  [30]  60  custom   [←→] cyc
                                                                                 
                                                                                 
 the quick brown                                                                 

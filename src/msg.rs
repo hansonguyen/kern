@@ -13,4 +13,6 @@ pub enum Msg {
     Esc,
     EndTest,
     UpdateAvailable(String),
+    TogglePunctuation,
+    ToggleNumbers,
 }

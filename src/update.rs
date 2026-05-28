@@ -355,6 +355,28 @@ pub fn update(model: &mut Model, msg: Msg) -> Command {
             };
         }
 
+        Msg::TogglePunctuation => {
+            if model.session.status == TestStatus::Running {
+                return Command::None;
+            }
+            model.config.punctuation = !model.config.punctuation;
+            model.screen = Screen::Typing;
+            return Command::GenerateWords {
+                count: model.config.initial_word_count(),
+            };
+        }
+
+        Msg::ToggleNumbers => {
+            if model.session.status == TestStatus::Running {
+                return Command::None;
+            }
+            model.config.numbers = !model.config.numbers;
+            model.screen = Screen::Typing;
+            return Command::GenerateWords {
+                count: model.config.initial_word_count(),
+            };
+        }
+
         // Update notifications arrive asynchronously from the background version-check
         // thread. Store the version string so the view can display a banner; the
         // notification intentionally survives Tab restarts (the update is still available).
@@ -1161,6 +1183,81 @@ mod tests {
         } else {
             panic!("expected SaveStats");
         }
+    }
+
+    #[test]
+    fn toggle_punctuation_noop_while_running() {
+        let mut model = model_with_words(&["hello"]);
+        update(&mut model, Msg::Char('h')); // → Running
+        assert_eq!(model.session.status, TestStatus::Running);
+        let flag_before = model.config.punctuation;
+        let cmd = update(&mut model, Msg::TogglePunctuation);
+        assert!(matches!(cmd, Command::None));
+        assert_eq!(model.config.punctuation, flag_before);
+    }
+
+    #[test]
+    fn toggle_numbers_noop_while_running() {
+        let mut model = model_with_words(&["hello"]);
+        update(&mut model, Msg::Char('h'));
+        assert_eq!(model.session.status, TestStatus::Running);
+        let flag_before = model.config.numbers;
+        let cmd = update(&mut model, Msg::ToggleNumbers);
+        assert!(matches!(cmd, Command::None));
+        assert_eq!(model.config.numbers, flag_before);
+    }
+
+    #[test]
+    fn toggle_punctuation_flips_flag_and_generates() {
+        let mut model = model_with_words(&["hello"]);
+        assert!(!model.config.punctuation);
+        let cmd = update(&mut model, Msg::TogglePunctuation);
+        assert!(model.config.punctuation);
+        assert!(matches!(cmd, Command::GenerateWords { .. }));
+        // toggle back
+        let cmd2 = update(&mut model, Msg::TogglePunctuation);
+        assert!(!model.config.punctuation);
+        assert!(matches!(cmd2, Command::GenerateWords { .. }));
+    }
+
+    #[test]
+    fn toggle_numbers_flips_flag_and_generates() {
+        let mut model = model_with_words(&["hello"]);
+        assert!(!model.config.numbers);
+        let cmd = update(&mut model, Msg::ToggleNumbers);
+        assert!(model.config.numbers);
+        assert!(matches!(cmd, Command::GenerateWords { .. }));
+        let cmd2 = update(&mut model, Msg::ToggleNumbers);
+        assert!(!model.config.numbers);
+        assert!(matches!(cmd2, Command::GenerateWords { .. }));
+    }
+
+    #[test]
+    fn toggle_punctuation_on_done_screen_navigates_away() {
+        let mut model = model_with_words(&["hello", "world"]);
+        model.screen = Screen::Done;
+        model.session.status = TestStatus::Done;
+        let cmd = update(&mut model, Msg::TogglePunctuation);
+        assert_ne!(
+            model.screen,
+            Screen::Done,
+            "toggle must not leave screen on Done"
+        );
+        assert!(matches!(cmd, Command::GenerateWords { .. }));
+    }
+
+    #[test]
+    fn toggle_numbers_on_done_screen_navigates_away() {
+        let mut model = model_with_words(&["hello", "world"]);
+        model.screen = Screen::Done;
+        model.session.status = TestStatus::Done;
+        let cmd = update(&mut model, Msg::ToggleNumbers);
+        assert_ne!(
+            model.screen,
+            Screen::Done,
+            "toggle must not leave screen on Done"
+        );
+        assert!(matches!(cmd, Command::GenerateWords { .. }));
     }
 }
 

@@ -16,6 +16,22 @@ fn fg(color: &crate::theme::HexColor) -> Style {
     Style::new().fg(color.to_ratatui_color())
 }
 
+fn toggle_span(
+    symbol: &'static str,
+    label: &'static str,
+    active: bool,
+    theme: &crate::theme::Theme,
+) -> Span<'static> {
+    if active {
+        Span::styled(
+            format!("[{} {}]", symbol, label),
+            fg(&theme.text).add_modifier(Modifier::BOLD),
+        )
+    } else {
+        Span::styled(format!("{} {}", symbol, label), fg(&theme.sub))
+    }
+}
+
 use crate::input::{CharState, char_state};
 use crate::metrics;
 use crate::model::ModalKind;
@@ -160,7 +176,7 @@ fn render_results(model: &Model, frame: &mut Frame) {
 
     // Bottom stats: left (test type) | right (raw + time)
     let bottom =
-        Layout::horizontal([Constraint::Length(14), Constraint::Fill(1)]).split(vertical[4]);
+        Layout::horizontal([Constraint::Length(32), Constraint::Fill(1)]).split(vertical[4]);
 
     // Bottom-left: test type info
     let bottom_left = Layout::vertical([
@@ -208,7 +224,10 @@ fn render_results(model: &Model, frame: &mut Frame) {
         bottom_left[1],
     );
     frame.render_widget(
-        Paragraph::new(Span::styled("english", fg(&model.theme.sub))),
+        Paragraph::new(Span::styled(
+            model.config.word_bank_label(),
+            fg(&model.theme.sub),
+        )),
         bottom_left[2],
     );
 
@@ -581,6 +600,10 @@ fn render_typing_idle(model: &Model, frame: &mut Frame, area: Rect) {
     let mut header_spans: Vec<Span> = vec![
         Span::styled("ktype", Style::new().add_modifier(Modifier::BOLD)),
         Span::raw("  "),
+        toggle_span("@", "punctuation", model.config.punctuation, &model.theme),
+        Span::raw("  "),
+        toggle_span("#", "numbers", model.config.numbers, &model.theme),
+        Span::raw("   "),
     ];
     header_spans.extend(mode_selector_spans(&model.config.test_mode, &model.theme));
     header_spans.push(Span::raw("   "));
@@ -1003,6 +1026,24 @@ mod tests {
     }
 
     #[test]
+    fn punctuation_on_header_snapshot() {
+        let mut model = test_model(&["the", "quick", "brown", "fox"], 0, &[]);
+        model.session.status = crate::model::TestStatus::Waiting;
+        model.config.punctuation = true;
+        let output = render_to_string(&model, 80, 24);
+        insta::assert_snapshot!("punctuation_on_header", output);
+    }
+
+    #[test]
+    fn numbers_on_header_snapshot() {
+        let mut model = test_model(&["the", "quick", "brown", "fox"], 0, &[]);
+        model.session.status = crate::model::TestStatus::Waiting;
+        model.config.numbers = true;
+        let output = render_to_string(&model, 80, 24);
+        insta::assert_snapshot!("numbers_on_header", output);
+    }
+
+    #[test]
     fn idle_screen_update_banner_snapshot() {
         let mut model = test_model(&["the", "quick", "brown", "fox"], 0, &[]);
         model.session.status = crate::model::TestStatus::Waiting;
@@ -1049,6 +1090,42 @@ mod tests {
         };
         let output = render_to_string(&model, 80, 24);
         insta::assert_snapshot!(output);
+    }
+
+    #[test]
+    fn results_screen_punctuation_numbers_label_snapshot() {
+        let words = vec![
+            {
+                let mut w = Word::new("The");
+                w.typed = "The".to_string();
+                w.committed = true;
+                w
+            },
+            {
+                let mut w = Word::new("quick,");
+                w.typed = "quick,".to_string();
+                w.committed = true;
+                w
+            },
+        ];
+        let mut model = Model {
+            screen: Screen::Done,
+            session: SessionState {
+                words,
+                current_word: 1,
+                status: crate::model::TestStatus::Done,
+                elapsed: Duration::from_secs(5),
+                total_chars_typed: 10,
+                total_errors: 0,
+                wpm_history: Vec::new(),
+                error_history: Vec::new(),
+            },
+            ..Model::default()
+        };
+        model.config.punctuation = true;
+        model.config.numbers = true;
+        let output = render_to_string(&model, 160, 24);
+        insta::assert_snapshot!("results_punctuation_numbers_label", output);
     }
 
     #[test]

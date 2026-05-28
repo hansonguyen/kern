@@ -27,12 +27,30 @@ pub fn execute_command(model: &mut Model, cmd: Command, rng: &mut SmallRng) {
     match cmd {
         Command::None => {}
         Command::GenerateWords { count } => {
-            model.session = SessionState::new(generator::generate(count, rng));
+            let words = generator::generate(
+                count,
+                rng,
+                model.config.punctuation,
+                model.config.numbers,
+                '.',
+            );
+            model.session = SessionState::new(words);
         }
         Command::AppendWords { count } => {
-            model.session.words.extend(generator::generate(count, rng));
-            // Advance to the newly appended word if the current word is committed.
-            // This handles the last-word case where update deferred the advance.
+            let prev_last = model
+                .session
+                .words
+                .last()
+                .and_then(|w| w.chars.last().copied())
+                .unwrap_or('.');
+            let new_words = generator::generate(
+                count,
+                rng,
+                model.config.punctuation,
+                model.config.numbers,
+                prev_last,
+            );
+            model.session.words.extend(new_words);
             if model.session.current_word + 1 < model.session.words.len()
                 && model.session.words[model.session.current_word].committed
             {
